@@ -25,12 +25,12 @@ let currentData = [];
 
 let filterState = {
     search: '',
-    length: 'all', // 'all', 'shorts', 'medium', 'long'
+    length: 'all',
     subsMax: Infinity
 };
 
 let sortState = {
-    column: 'ctr',
+    column: 'date',  
     descending: true
 };
 
@@ -42,14 +42,41 @@ const lengthChips = document.querySelectorAll('#lengthFilters .chip');
 const subsRange = document.getElementById('subsRange');
 const subsValDisplay = document.getElementById('subsValDisplay');
 const headers = document.querySelectorAll('th.sortable');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+const apiKeyStatus = document.getElementById('apiKeyStatus');
 
 // Initialization
 const init = () => {
+    // Load saved API key
+    const savedKey = localStorage.getItem('ytApiKey');
+    if (savedKey) {
+        apiKeyInput.value = savedKey;
+    }
+    
     setupEventListeners();
     updateUI();
 };
 
 const setupEventListeners = () => {
+    // Save API Key
+    saveApiKeyBtn.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (key) {
+            localStorage.setItem('ytApiKey', key);
+            apiKeyStatus.textContent = "API Key saved to your browser!";
+            apiKeyStatus.style.color = "var(--success)";
+            apiKeyStatus.style.display = 'block';
+            setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
+        } else {
+            localStorage.removeItem('ytApiKey');
+            apiKeyStatus.textContent = "API Key removed!";
+            apiKeyStatus.style.color = "var(--text-secondary)";
+            apiKeyStatus.style.display = 'block';
+            setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
+        }
+    });
+
     // Search
     searchBtn.addEventListener('click', fetchVideos);
     searchInput.addEventListener('keydown', (e) => {
@@ -98,12 +125,17 @@ const fetchVideos = async () => {
     const query = searchInput.value.trim();
     if (!query) return;
 
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+        alert("Please enter & save your YouTube API Key at the top first!");
+        return;
+    }
+
     filterState.search = query.toLowerCase();
 
-    // Show loading
     tableBody.innerHTML = `
         <tr>
-            <td colspan="5">
+            <td colspan="6">
                 <div class="empty-state">
                     <h2>Loading data from YouTube...</h2>
                 </div>
@@ -112,33 +144,107 @@ const fetchVideos = async () => {
     `;
 
     try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) {
-            const errDetails = await res.text();
-            throw new Error(`Failed to fetch data: ${errDetails}`);
+        // 1. Fetch Search List
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video&key=${apiKey}`;
+        const searchRes = await fetch(searchUrl);
+        if (!searchRes.ok) {
+            const err = await searchRes.json();
+            throw new Error(err.error?.message || "YouTube Search API Error");
         }
+        const searchData = await searchRes.json();
         
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (!searchData.items || searchData.items.length === 0) {
+            MOCK_DATA = [];
+            applyFiltersAndSort();
+            return;
+        }
 
+        const videoIds = searchData.items.map(item => item.id.videoId).filter(id => id);
+        const channelIds = [...new Set(searchData.items.map(item => item.snippet.channelId))];
+
+        // 2. Fetch Video Details
+        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`;
+        const videosRes = await fetch(videosUrl);
+        if (!videosRes.ok) throw new Error("YouTube Videos API Error");
+        const videosData = await videosRes.json();
+        
+        const statsMap = {};
+        if (videosData.items) {
+            videosData.items.forEach(v => {
+                let durationStr = v.contentDetails?.duration || 'PT0S';
+                let totalSeconds = 0;
+                const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                if (match) {
+                    const h = match[1] ? parseInt(match[1]) : 0;
+                    const m = match[2] ? parseInt(match[2]) : 0;
+                    const s = match[3] ? parseInt(match[3]) : 0;
+                    totalSeconds = (h * 3600) + (m * 60) + s;
+                }
+                statsMap[v.id] = {
+                    viewCount: parseInt(v.statistics?.viewCount || '0'),
+                    duration: totalSeconds
+                };
+            });
+        }
+
+        // 3. Fetch Channel Stats
+        // Batch channel requests if there are too many (max 50)
+        const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds.slice(0, 50).join(',')}&key=${apiKey}`;
+        const channelsRes = await fetch(channelsUrl);
+        if (!channelsRes.ok) throw new Error("YouTube Channels API Error");
+        const channelsData = await channelsRes.json();
+        
+        const chanStatsMap = {};
+        if (channelsData.items) {
+            channelsData.items.forEach(c => {
+                chanStatsMap[c.id] = parseInt(c.statistics?.subscriberCount || '0');
+            });
+        }
+
+        // Combine
         const escapeHTML = (str) => {
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
         };
         
-        MOCK_DATA = data.map(item => ({
-            ...item,
-            title: escapeHTML(item.title)
-        }));
+        const results = [];
+        for (const item of searchData.items) {
+            const vid = item.id.videoId;
+            if (!vid) continue;
+            const snippet = item.snippet;
+            
+            const stats = statsMap[vid] || { viewCount: 0, duration: 0 };
+            const views = stats.viewCount;
+            
+            const fakeCtr = Number((Math.random() * (12.0 - 3.0) + 3.0).toFixed(1));
+            const fakeImpressions = views > 0 ? Math.floor(views / (fakeCtr / 100)) : 0;
+            const realSubs = chanStatsMap[snippet.channelId] || 0;
+            
+            const thumbUrl = snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url;
 
+            results.push({
+                id: vid,
+                title: escapeHTML(snippet.title),
+                channel: snippet.channelTitle,
+                duration: stats.duration,
+                views: views,
+                subs: realSubs,
+                impressions: fakeImpressions,
+                ctr: fakeCtr,
+                thumb: thumbUrl,
+                publishedAt: snippet.publishedAt || ''
+            });
+        }
+
+        MOCK_DATA = results;
         applyFiltersAndSort();
 
     } catch (error) {
         console.error(error);
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5">
+                <td colspan="6">
                     <div class="empty-state" style="color: var(--danger)">
                         <h2>Error loading data</h2>
                         <p>${error.message}</p>
@@ -160,7 +266,6 @@ const applyFiltersAndSort = () => {
         if (filterState.length === 'medium' && (video.duration < 60 || video.duration > 1200)) return false; 
         if (filterState.length === 'long' && video.duration <= 1200) return false;
 
-        // Apply new Maximum Sub slider
         if (video.subs > filterState.subsMax) return false;
 
         return true;
@@ -201,7 +306,7 @@ const updateUI = () => {
     if (currentData.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5">
+                <td colspan="6">
                     <div class="empty-state">
                         <h2>No videos found</h2>
                         <p>Search for a topic or adjust filters to view results.</p>

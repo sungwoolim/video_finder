@@ -36,6 +36,14 @@
         <header>
             <h1>Youtube Analyzer</h1>
             <p style="color: var(--text-secondary)">Find the best performing videos and analyze metrics.</p>
+            
+            <div class="api-key-container" style="margin-top: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="password" id="apiKeyInput" placeholder="Enter your YouTube Data API Key..." style="background: var(--glass-bg); border: 1px solid var(--glass-border); color: white; padding: 0.5rem 1rem; border-radius: 9999px; width: 300px; outline: none;">
+                    <button id="saveApiKeyBtn" style="background: var(--accent-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 9999px; cursor: pointer; font-weight: 600;">Save</button>
+                </div>
+                <div id="apiKeyStatus" style="font-size: 0.8rem; color: var(--success); display: none;">API Key saved to your browser!</div>
+            </div>
         </header>
 
         <main>
