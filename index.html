@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Search Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Youtube Analyzer</h1>
+            <p style="color: var(--text-secondary)">Find the best performing videos and analyze metrics.</p>
+        </header>
+
+        <main>
+            <div class="search-container">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search topics (e.g., Coding, Vlog, Gaming)...">
+                    <button id="searchBtn">Search</button>
+                </div>
+            </div>
+
+            <div class="filters-panel">
+                <div class="filter-group">
+                    <label>Video Length</label>
+                    <div class="filter-options" id="lengthFilters">
+                        <div class="chip active" data-value="all">All</div>
+                        <div class="chip" data-value="shorts">Under 1 min (Shorts)</div>
+                        <div class="chip" data-value="medium">1 - 20 mins</div>
+                        <div class="chip" data-value="long">20+ mins</div>
+                    </div>
+                </div>
+
+                <div class="filter-group" style="flex: 1; min-width: 250px;">
+                    <label style="display:flex; justify-content:space-between;">
+                        <span>Subscribers &lt; <span id="subsValDisplay" style="color: var(--accent-color);">Any (5M+)</span></span>
+                    </label>
+                    <div class="slider-container" style="padding-top: 10px;">
+                        <input type="range" id="subsRange" min="0" max="5000000" step="10000" value="5000000">
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Video</th>
+                                <th class="sortable" data-sort="date">Upload Date</th>
+                                <th class="sortable" data-sort="views">Views</th>
+                                <th class="sortable" data-sort="subs">Subscribers (Real)</th>
+                                <th class="sortable" data-sort="impressions">Impressions (Est.)</th>
+                                <th class="sortable desc" data-sort="ctr">CTR (Est.)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Rows will be populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
