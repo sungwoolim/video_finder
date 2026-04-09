@@ -26,6 +26,7 @@ let currentData = [];
 let filterState = {
     search: '',
     length: 'all',
+    date: 'all',
     subsMax: Infinity
 };
 
@@ -39,6 +40,7 @@ const tableBody = document.getElementById('tableBody');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const lengthChips = document.querySelectorAll('#lengthFilters .chip');
+const dateChips = document.querySelectorAll('#dateFilters .chip');
 const subsRange = document.getElementById('subsRange');
 const subsValDisplay = document.getElementById('subsValDisplay');
 const headers = document.querySelectorAll('th.sortable');
@@ -81,6 +83,22 @@ const setupEventListeners = () => {
     searchBtn.addEventListener('click', fetchVideos);
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') fetchVideos();
+    });
+
+    // Date Filters
+    dateChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            if (filterState.date === chip.dataset.value) return;
+            dateChips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            filterState.date = chip.dataset.value;
+            
+            if (searchInput.value.trim()) {
+                fetchVideos();
+            } else {
+                applyFiltersAndSort();
+            }
+        });
     });
 
     // Length Filters
@@ -145,7 +163,15 @@ const fetchVideos = async () => {
 
     try {
         // 1. Fetch Search List
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video&key=${apiKey}`;
+        let dateQuery = '';
+        if (filterState.date !== 'all') {
+            const now = new Date();
+            if (filterState.date === 'week') now.setDate(now.getDate() - 7);
+            else if (filterState.date === 'month') now.setMonth(now.getMonth() - 1);
+            else if (filterState.date === 'year') now.setFullYear(now.getFullYear() - 1);
+            dateQuery = `&publishedAfter=${now.toISOString()}`;
+        }
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video${dateQuery}&key=${apiKey}`;
         const searchRes = await fetch(searchUrl);
         if (!searchRes.ok) {
             const err = await searchRes.json();
@@ -265,6 +291,16 @@ const applyFiltersAndSort = () => {
         if (filterState.length === 'shorts' && video.duration >= 60) return false;
         if (filterState.length === 'medium' && (video.duration < 60 || video.duration > 1200)) return false; 
         if (filterState.length === 'long' && video.duration <= 1200) return false;
+
+        if (filterState.date !== 'all') {
+            const pubDate = new Date(video.publishedAt);
+            const now = new Date();
+            let limitDate = new Date();
+            if (filterState.date === 'week') limitDate.setDate(now.getDate() - 7);
+            else if (filterState.date === 'month') limitDate.setMonth(now.getMonth() - 1);
+            else if (filterState.date === 'year') limitDate.setFullYear(now.getFullYear() - 1);
+            if (pubDate < limitDate) return false;
+        }
 
         if (video.subs > filterState.subsMax) return false;
 
