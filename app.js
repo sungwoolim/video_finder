@@ -27,7 +27,8 @@ let filterState = {
     search: '',
     length: 'all',
     date: 'all',
-    subsMax: Infinity
+    subsMax: Infinity,
+    viewsMin: 0
 };
 
 let sortState = {
@@ -43,6 +44,8 @@ const lengthChips = document.querySelectorAll('#lengthFilters .chip');
 const dateChips = document.querySelectorAll('#dateFilters .chip');
 const subsRange = document.getElementById('subsRange');
 const subsValDisplay = document.getElementById('subsValDisplay');
+const viewsRange = document.getElementById('viewsRange');
+const viewsValDisplay = document.getElementById('viewsValDisplay');
 const headers = document.querySelectorAll('th.sortable');
 const apiKeyInput = document.getElementById('apiKeyInput');
 const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
@@ -120,6 +123,22 @@ const setupEventListeners = () => {
         } else {
             subsValDisplay.textContent = formatNumber(val);
             filterState.subsMax = val;
+        }
+        applyFiltersAndSort();
+    });
+
+    // Views Slider Filter
+    viewsRange.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value);
+        if (val === 0) {
+            viewsValDisplay.textContent = 'Any (0)';
+            filterState.viewsMin = 0;
+        } else if (val >= 10000000) {
+            viewsValDisplay.textContent = '10M+';
+            filterState.viewsMin = 10000000;
+        } else {
+            viewsValDisplay.textContent = formatNumber(val) + '+';
+            filterState.viewsMin = val;
         }
         applyFiltersAndSort();
     });
@@ -303,6 +322,7 @@ const applyFiltersAndSort = () => {
         }
 
         if (video.subs > filterState.subsMax) return false;
+        if (video.views < filterState.viewsMin) return false;
 
         return true;
     });
