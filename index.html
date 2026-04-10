@@ -99,6 +99,7 @@
                     <table>
                         <thead>
                             <tr>
+                                <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox"></th>
                                 <th>Video</th>
                                 <th class="sortable" data-sort="date">Upload Date</th>
                                 <th class="sortable" data-sort="views">Views</th>
@@ -114,6 +115,66 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Script Generator View (Hidden by default) -->
+    <div id="generatorView" style="display: none; padding: 2rem; background: var(--glass-bg); border-top: 1px solid var(--glass-border); margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2>AI Script Generator</h2>
+            <button id="closeGeneratorBtn" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">Close & Back to Search</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+            <!-- Settings Panel -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Gemini API Key</label>
+                    <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key..." style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Script Structure (Prompt)</label>
+                    <textarea id="promptTemplateInput" style="width: 100%; height: 120px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none; resize: vertical; font-family: inherit;">훅(질문 포함) &gt; 인트로 &gt; 설명 &gt; 결론</textarea>
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Length Option</label>
+                    <select id="lengthOptionSelect" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none;">
+                        <option value="Normal">Normal (약 13분, 7000자 내외)</option>
+                        <option value="Short">Short (약 5분, 3000자 내외)</option>
+                        <option value="Long">Long (약 20분, 10000자 내외)</option>
+                    </select>
+                </div>
+
+                <button id="startGenerationBtn" style="background: var(--success, #27ae60); color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);">
+                    Start Multi-step Generation
+                </button>
+            </div>
+
+            <!-- Output Panel -->
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column;">
+                <h3 style="margin-top: 0; color: var(--text-secondary);">Generation Progress</h3>
+                <div id="generationLog" style="flex: 1; min-height: 400px; font-family: monospace; font-size: 0.9rem; overflow-y: auto; white-space: pre-wrap; color: #e2e8f0; background: #0f172a; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;"></div>
+                
+                <!-- TTS Audio Generation Panel -->
+                <div id="ttsPanel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                    <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
+                        🎧 Automated TTS Generator
+                        <button id="generateAudioBtn" style="background: #8b5cf6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);">Generate Full Audio (enceladus)</button>
+                    </h3>
+                    <div id="audioLog" style="font-family: monospace; font-size: 0.85rem; max-height: 150px; overflow-y: auto; white-space: pre-wrap; color: #a78bfa; background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid #1e293b; margin-top: 1rem;">Waiting for script generation...</div>
+                    <div id="audioResultContainer" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <div id="fabContainer" style="display: none; position: fixed; bottom: 2rem; right: 2rem; z-index: 100;">
+        <button id="extractScriptBtn" style="background: var(--accent-color); color: white; border: none; padding: 1rem 2rem; border-radius: 9999px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); display: flex; align-items: center; gap: 0.5rem; transition: transform 0.2s;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Generate Script (<span id="selectedCount">0</span>)
+        </button>
     </div>
 
     <script src="app.js"></script>

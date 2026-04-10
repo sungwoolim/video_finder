@@ -1,0 +1,24 @@
+{
+  "name": "yt-search-page",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sungwoolim/video_finder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sungwoolim/video_finder/issues"
+  },
+  "homepage": "https://github.com/sungwoolim/video_finder#readme",
+  "dependencies": {
+    "youtube-transcript": "^1.3.0"
+  }
+}
