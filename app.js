@@ -922,11 +922,91 @@ generateAudioBtn.addEventListener('click', async () => {
         `;
         alog(`\n✅ 오디오 생성 및 병합 완벽히 성공! 결과물을 다운로드하거나 재생하세요.`);
         
+        // Expose to video creator
+        window.finalWavBlob = finalWavBlob;
+        document.getElementById('videoPanel').style.display = 'block';
+        document.getElementById('videoLog').style.display = 'block';
+        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 Whisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
+        
     } catch(e) {
         alog(`\n🚨 ERROR: ${e.message}`);
     }
     generateAudioBtn.disabled = false;
     generateAudioBtn.textContent = "Generate Full Audio (enceladus)";
+});
+
+// --- VIDEO COMPOSITOR LOGIC ---
+const generateVideoBtn = document.getElementById('generateVideoBtn');
+const whiskImagesInput = document.getElementById('whiskImagesInput');
+const videoLog = document.getElementById('videoLog');
+
+function vlog(msg) {
+    videoLog.innerHTML += msg;
+    videoLog.scrollTop = videoLog.scrollHeight;
+}
+
+generateVideoBtn.addEventListener('click', async () => {
+    if (!window.whiskReadyScriptText || !window.finalWavBlob) {
+        alert("먼저 대본(Script)과 오디오 트랙(Audio)을 모두 생성해야 합니다!");
+        return;
+    }
+    if (whiskImagesInput.files.length === 0) {
+        alert("오토 위스크(Auto Whisk)에서 생성한 이미지 파일들을 모두 드래그해서 선택해주세요!");
+        return;
+    }
+
+    generateVideoBtn.disabled = true;
+    generateVideoBtn.textContent = "⏳ 비디오 병합 중... (잠시만 기다려주세요)";
+    videoLog.innerHTML = "";
+    vlog(`🚀 영상을 병합하기 위해 로컬 파이썬 렌더링 서버(http://localhost:5000)와 통신합니다...\n`);
+
+    const formData = new FormData();
+    formData.append("script", window.whiskReadyScriptText);
+    formData.append("audio", window.finalWavBlob, "audio.wav");
+    
+    for (let i = 0; i < whiskImagesInput.files.length; i++) {
+        formData.append("images", whiskImagesInput.files[i]);
+    }
+
+    try {
+        vlog(`⏳ 이미지 ${whiskImagesInput.files.length}장을 서버로 전송하고 FFmpeg 줌팬(Zoompan) 필터 렌더링을 시작합니다...\n(영상 길이에 따라 몇 초~수 분 소요)\n`);
+        
+        const res = await fetch("http://127.0.0.1:5000/api/make-video", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!res.ok) {
+            let errMsg = "서버 에러 발생!";
+            try {
+                const errObj = await res.json();
+                errMsg = errObj.error || errMsg;
+            } catch(e) {}
+            throw new Error(errMsg);
+        }
+
+        vlog(`\n🎉 비디오 렌더링이 성공적으로 완료되었습니다! 파일 다운로드를 시작합니다.`);
+        
+        // 버퍼나 바이너리 파일 처리
+        const videoBlob = await res.blob();
+        const videoUrl = URL.createObjectURL(videoBlob);
+        
+        // 자동 다운로드 처리
+        const a = document.createElement('a');
+        a.href = videoUrl;
+        a.download = "Final_YouTube_Video.mp4";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        vlog(`\n✅ "Final_YouTube_Video.mp4" 파일이 성공적으로 다운로드되었습니다!`);
+
+    } catch (e) {
+        vlog(`\n🚨 ERROR: ${e.message}\n로컬 서버(python3 video_server.py)가 실행 중표인지 반드시 확인해 주세요!`);
+    }
+
+    generateVideoBtn.disabled = false;
+    generateVideoBtn.textContent = "Upload & Create Video";
 });
 
 init();

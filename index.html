@@ -165,6 +165,19 @@
                     <div id="audioLog" style="font-family: monospace; font-size: 0.85rem; max-height: 150px; overflow-y: auto; white-space: pre-wrap; color: #a78bfa; background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid #1e293b; margin-top: 1rem;">Waiting for script generation...</div>
                     <div id="audioResultContainer" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;"></div>
                 </div>
+                
+                <!-- Video Compositor Panel -->
+                <div id="videoPanel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                    <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
+                        🎬 Automated Video Compositor
+                        <button id="generateVideoBtn" style="background: #eab308; color: black; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(234, 179, 8, 0.3);">Upload & Create Video</button>
+                    </h3>
+                    <div style="margin-top: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Select AutoWhisk Images (Multiple)</label>
+                        <input type="file" id="whiskImagesInput" multiple accept="image/*" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px;">
+                    </div>
+                    <div id="videoLog" style="font-family: monospace; font-size: 0.85rem; max-height: 150px; overflow-y: auto; white-space: pre-wrap; color: #fde047; background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid #1e293b; margin-top: 1rem; display: none;"></div>
+                </div>
             </div>
         </div>
     </div>
