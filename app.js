@@ -720,12 +720,12 @@ Instructions:
             // 1. Remove step headers like [ 훅(질문 포함) ]
             // 2. Break lines at every period, question mark, or exclamation mark.
             const whiskReadyScript = accumulatedScript
-                .replace(/\\[(.*?)\\]/g, '') // Remove markers
-                .replace(/([.?!])([\\s\\n]+)/g, '$1\\n\\n') // Add double newlines after punctuation
-                .split('\\n')
+                .replace(/\[.*?\]/g, '') // Remove markers properly
+                .replace(/([.?!])(\s+)/g, '$1\n') // Add single newline after punctuation
+                .split('\n')
                 .map(line => line.trim())
                 .filter(line => line.length > 0) // Remove empty lines
-                .join('\\n\\n');
+                .join('\n'); // Join with single newline, so one sentence per line
 
             log(`=== 🎬 AUTO WHISK READY SCRIPT (한 줄에 한 문장) ===\n`);
             log(whiskReadyScript);
