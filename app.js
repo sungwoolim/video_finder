@@ -220,60 +220,83 @@ const fetchVideos = async () => {
             else if (filterState.date === 'year') now.setFullYear(now.getFullYear() - 1);
             dateQuery = `&publishedAfter=${now.toISOString()}`;
         }
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video${dateQuery}&key=${apiKey}`;
-        const searchRes = await fetch(searchUrl);
-        if (!searchRes.ok) {
-            const err = await searchRes.json();
-            throw new Error(err.error?.message || "YouTube Search API Error");
-        }
-        const searchData = await searchRes.json();
         
-        if (!searchData.items || searchData.items.length === 0) {
+        let allItems = [];
+        let pageToken = '';
+        let pagesFetched = 0;
+        const MAX_PAGES = 5; // Fetch up to 150 results (30 * 5)
+        
+        while (pagesFetched < MAX_PAGES) {
+            const pageQuery = pageToken ? `&pageToken=${pageToken}` : '';
+            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video${dateQuery}${pageQuery}&key=${apiKey}`;
+            const searchRes = await fetch(searchUrl);
+            if (!searchRes.ok) {
+                const err = await searchRes.json();
+                throw new Error(err.error?.message || "YouTube Search API Error");
+            }
+            const searchData = await searchRes.json();
+            
+            if (searchData.items && searchData.items.length > 0) {
+                allItems = allItems.concat(searchData.items);
+            }
+            
+            pageToken = searchData.nextPageToken;
+            pagesFetched++;
+            
+            if (!pageToken) break; // No more pages
+        }
+        
+        if (allItems.length === 0) {
             MOCK_DATA = [];
             applyFiltersAndSort();
             return;
         }
 
-        const videoIds = searchData.items.map(item => item.id.videoId).filter(id => id);
-        const channelIds = [...new Set(searchData.items.map(item => item.snippet.channelId))];
+        const videoIds = allItems.map(item => item.id.videoId).filter(id => id);
+        const channelIds = [...new Set(allItems.map(item => item.snippet.channelId))];
 
-        // 2. Fetch Video Details
-        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`;
-        const videosRes = await fetch(videosUrl);
-        if (!videosRes.ok) throw new Error("YouTube Videos API Error");
-        const videosData = await videosRes.json();
-        
+        // 2. Fetch Video Details (in batches of 50)
         const statsMap = {};
-        if (videosData.items) {
-            videosData.items.forEach(v => {
-                let durationStr = v.contentDetails?.duration || 'PT0S';
-                let totalSeconds = 0;
-                const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-                if (match) {
-                    const h = match[1] ? parseInt(match[1]) : 0;
-                    const m = match[2] ? parseInt(match[2]) : 0;
-                    const s = match[3] ? parseInt(match[3]) : 0;
-                    totalSeconds = (h * 3600) + (m * 60) + s;
-                }
-                statsMap[v.id] = {
-                    viewCount: parseInt(v.statistics?.viewCount || '0'),
-                    duration: totalSeconds
-                };
-            });
+        for (let i = 0; i < videoIds.length; i += 50) {
+            const batchIds = videoIds.slice(i, i + 50);
+            const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${batchIds.join(',')}&key=${apiKey}`;
+            const videosRes = await fetch(videosUrl);
+            if (!videosRes.ok) throw new Error("YouTube Videos API Error");
+            const videosData = await videosRes.json();
+            
+            if (videosData.items) {
+                videosData.items.forEach(v => {
+                    let durationStr = v.contentDetails?.duration || 'PT0S';
+                    let totalSeconds = 0;
+                    const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                    if (match) {
+                        const h = match[1] ? parseInt(match[1]) : 0;
+                        const m = match[2] ? parseInt(match[2]) : 0;
+                        const s = match[3] ? parseInt(match[3]) : 0;
+                        totalSeconds = (h * 3600) + (m * 60) + s;
+                    }
+                    statsMap[v.id] = {
+                        viewCount: parseInt(v.statistics?.viewCount || '0'),
+                        duration: totalSeconds
+                    };
+                });
+            }
         }
 
-        // 3. Fetch Channel Stats
-        // Batch channel requests if there are too many (max 50)
-        const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds.slice(0, 50).join(',')}&key=${apiKey}`;
-        const channelsRes = await fetch(channelsUrl);
-        if (!channelsRes.ok) throw new Error("YouTube Channels API Error");
-        const channelsData = await channelsRes.json();
-        
+        // 3. Fetch Channel Stats (in batches of 50)
         const chanStatsMap = {};
-        if (channelsData.items) {
-            channelsData.items.forEach(c => {
-                chanStatsMap[c.id] = parseInt(c.statistics?.subscriberCount || '0');
-            });
+        for (let i = 0; i < channelIds.length; i += 50) {
+            const batchIds = channelIds.slice(i, i + 50);
+            const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${batchIds.join(',')}&key=${apiKey}`;
+            const channelsRes = await fetch(channelsUrl);
+            if (!channelsRes.ok) throw new Error("YouTube Channels API Error");
+            const channelsData = await channelsRes.json();
+            
+            if (channelsData.items) {
+                channelsData.items.forEach(c => {
+                    chanStatsMap[c.id] = parseInt(c.statistics?.subscriberCount || '0');
+                });
+            }
         }
 
         // Combine
@@ -284,7 +307,7 @@ const fetchVideos = async () => {
         };
         
         const results = [];
-        for (const item of searchData.items) {
+        for (const item of allItems) {
             const vid = item.id.videoId;
             if (!vid) continue;
             const snippet = item.snippet;
