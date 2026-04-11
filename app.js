@@ -791,7 +791,12 @@ function splitTextIntoChunks(text, maxLen = 800) {
 function convertPcmBase64ToWavBlob(base64PcmStrings, sampleRate = 24000) {
     let totalLength = 0;
     const buffers = base64PcmStrings.map(b64 => {
-        const binaryString = window.atob(b64);
+        let stB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = stB64.length % 4;
+        if (pad) {
+            stB64 += '='.repeat(4 - pad);
+        }
+        const binaryString = window.atob(stB64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
