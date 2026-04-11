@@ -85,11 +85,11 @@
                 </div>
 
                 <div class="filter-group" style="flex: 1; min-width: 250px;">
-                    <label style="display:flex; justify-content:space-between;">
-                        <span>Views &gt; <span id="viewsValDisplay" style="color: var(--accent-color);">Any (0)</span></span>
+                    <label style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;">
+                        <span>Minimum Views</span>
                     </label>
-                    <div class="slider-container" style="padding-top: 10px;">
-                        <input type="range" id="viewsRange" min="0" max="10000000" step="50000" value="0">
+                    <div>
+                        <input type="number" id="viewsInput" min="0" value="0" placeholder="e.g. 50000" style="width: 100%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none; font-family: inherit;">
                     </div>
                 </div>
             </div>

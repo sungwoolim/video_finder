@@ -46,8 +46,7 @@ const lengthChips = document.querySelectorAll('#lengthFilters .chip');
 const dateChips = document.querySelectorAll('#dateFilters .chip');
 const subsRange = document.getElementById('subsRange');
 const subsValDisplay = document.getElementById('subsValDisplay');
-const viewsRange = document.getElementById('viewsRange');
-const viewsValDisplay = document.getElementById('viewsValDisplay');
+const viewsInput = document.getElementById('viewsInput');
 const headers = document.querySelectorAll('th.sortable');
 const apiKeyInput = document.getElementById('apiKeyInput');
 const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
@@ -152,19 +151,11 @@ const setupEventListeners = () => {
         applyFiltersAndSort();
     });
 
-    // Views Slider Filter
-    viewsRange.addEventListener('input', (e) => {
+    // Views Input Filter
+    viewsInput.addEventListener('input', (e) => {
         let val = parseInt(e.target.value);
-        if (val === 0) {
-            viewsValDisplay.textContent = 'Any (0)';
-            filterState.viewsMin = 0;
-        } else if (val >= 10000000) {
-            viewsValDisplay.textContent = '10M+';
-            filterState.viewsMin = 10000000;
-        } else {
-            viewsValDisplay.textContent = formatNumber(val) + '+';
-            filterState.viewsMin = val;
-        }
+        if (isNaN(val) || val < 0) val = 0;
+        filterState.viewsMin = val;
         applyFiltersAndSort();
     });
 
