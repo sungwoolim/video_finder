@@ -643,19 +643,23 @@ if (startGenerationBtn) {
             const idsArray = Array.from(selectedVideoIds);
 
             for (const vid of idsArray) {
+                const videoData = currentData.find(v => v.id === vid);
+                const title = videoData ? videoData.title : 'Unknown Title';
                 log(`Extracting transcript for video ID: ${vid} (${idx}/${idsArray.length})...`);
                 // Calls Cloudflare Function
                 const res = await fetch(`/api/transcript?videoId=${vid}`);
                 if (!res.ok) {
                     const err = await res.json().catch(()=>({}));
                     log(`Warning: Failed to extract ${vid}. ${err.error || res.statusText}`);
+                    combinedTranscripts += `\n--- Video: ${vid} (Title: ${title}) ---\n(No transcript available)\n`;
                 } else {
                     const data = await res.json();
                     if (data.transcript) {
-                        combinedTranscripts += `\n--- Video: ${vid} ---\n${data.transcript}\n`;
+                        combinedTranscripts += `\n--- Video: ${vid} (Title: ${title}) ---\n${data.transcript}\n`;
                         log(`Success for ${vid}.`);
                     } else {
                         log(`Warning: No transcript found for ${vid}.`);
+                        combinedTranscripts += `\n--- Video: ${vid} (Title: ${title}) ---\n(No transcript available)\n`;
                     }
                 }
                 idx++;
@@ -787,23 +791,29 @@ function splitTextIntoChunks(text, maxLen = 800) {
     return chunks;
 }
 
-// Convert Array of Raw PCM Base64 to a single WAV Blob
-function convertPcmBase64ToWavBlob(base64PcmStrings, sampleRate = 24000) {
+// Convert Array of Raw PCM (Base64 Strings or Uint8Arrays) to a single WAV Blob
+function convertPcmArrayToWavBlob(pcmDataArray, sampleRate = 24000) {
     let totalLength = 0;
-    const buffers = base64PcmStrings.map(b64 => {
-        let stB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-        const pad = stB64.length % 4;
-        if (pad) {
-            stB64 += '='.repeat(4 - pad);
+    const buffers = pcmDataArray.map(data => {
+        if (typeof data === 'string') {
+            let stB64 = data.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = stB64.length % 4;
+            if (pad) {
+                stB64 += '='.repeat(4 - pad);
+            }
+            const binaryString = window.atob(stB64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            totalLength += len;
+            return bytes;
+        } else {
+            // It's already a Uint8Array from OpenAI
+            totalLength += data.length;
+            return data;
         }
-        const binaryString = window.atob(stB64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        totalLength += len;
-        return bytes;
     });
 
     const combinedBytes = new Uint8Array(totalLength);
@@ -846,7 +856,7 @@ async function callGeminiAudio(apiKey, chunkText) {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     
     // User styling param
-    const promptText = `Read aloud in an analytical tone:\n\n${chunkText}`;
+    const promptText = `[Voice Rules: Professional anchor, Warm and analytical tone, Constant speed, Medium pitch. Maintain the EXACT same consistent voice character from start to finish without mood swings.] Read the following text:\n\n${chunkText}`;
     
     for(let r = 0; r < retries; r++) {
         try {
@@ -886,12 +896,40 @@ async function callGeminiAudio(apiKey, chunkText) {
             
         } catch(e) {
              if (e.message.includes("fetch")) {
+                 if (r === retries - 1) throw e;
                  await sleep(5000);
                  continue;
              }
              if (r === retries - 1) throw e;
         }
     }
+    throw new Error("API calls completely failed because all retries were exhausted.");
+}
+
+async function callOpenAIAudio(apiKey, chunkText) {
+    const res = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model: "tts-1",
+            input: chunkText,
+            voice: "onyx",
+            response_format: "pcm",
+            speed: 0.95 // Slightly slower for calmer, clearer anchor tone
+        })
+    });
+
+    if (!res.ok) {
+        let err;
+        try { err = await res.json(); } catch(e){}
+        throw new Error(err?.error?.message || "OpenAI API Error");
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return new Uint8Array(arrayBuffer); // Raw PCM Stream from OpenAI
 }
 
 generateAudioBtn.addEventListener('click', async () => {
@@ -902,41 +940,64 @@ generateAudioBtn.addEventListener('click', async () => {
     audioLog.innerHTML = "";
     audioResultContainer.innerHTML = "";
     
-    // Chunk under 800 chars to avoid TTS cutoff/noise anomalies at tail
-    const chunks = splitTextIntoChunks(window.whiskReadyScriptText, 800);
-    alog(`✅ 전체 대본을 ${chunks.length}개의 조각(Chunk)으로 분할했습니다 (소음 끊김 방지용 최대 800자).\n`);
+    const _apiKey = document.getElementById('geminiApiKeyInput').value.trim();
+    const openAiApiKey = document.getElementById('openAiApiKeyInput')?.value.trim();
+    const engine = document.getElementById('ttsEngineSelect')?.value || 'gemini';
+    
+    // Set chunk size. Gemini fails with 429 often on large chunks (internal limits). OpenAI handles 1500 fine.
+    const chunkSize = engine === 'openai' ? 1500 : 800;
+    const chunks = splitTextIntoChunks(window.whiskReadyScriptText, chunkSize);
+    alog(`✅ 전체 대본을 ${chunks.length}개의 조각(Chunk)으로 분할했습니다 (엔진: ${engine}, 최대 ${chunkSize}자).\n`);
     
     const base64AudioArray = [];
-    const _apiKey = document.getElementById('geminiApiKeyInput').value.trim();
     
-    if (!_apiKey) {
-        alog(`\n🚨 ERROR: API Key가 누락되었습니다.`);
+    if (engine === 'gemini' && !_apiKey) {
+        alog(`\n🚨 ERROR: Gemini API Key가 누락되었습니다.`);
         generateAudioBtn.disabled = false;
-        generateAudioBtn.textContent = "Generate Full Audio (enceladus)";
+        generateAudioBtn.textContent = "Generate Full Audio";
+        return;
+    }
+    
+    if (engine === 'openai' && !openAiApiKey) {
+        alog(`\n🚨 ERROR: OpenAI API Key가 누락되었습니다.`);
+        generateAudioBtn.disabled = false;
+        generateAudioBtn.textContent = "Generate Full Audio";
         return;
     }
     
     try {
         for(let i=0; i<chunks.length; i++) {
-           alog(`▶ Generating Audio Part ${i+1}/${chunks.length}...\n`);
-           const b64 = await callGeminiAudio(_apiKey, chunks[i]);
-           base64AudioArray.push(b64);
+           alog(`▶ Generating Audio Part ${i+1}/${chunks.length} [${engine.toUpperCase()}]...\n`);
+           
+           let audioData;
+           if (engine === 'openai') {
+               audioData = await callOpenAIAudio(openAiApiKey, chunks[i]);
+           } else {
+               audioData = await callGeminiAudio(_apiKey, chunks[i]);
+           }
+           base64AudioArray.push(audioData);
            alog(`✅ Part ${i+1} 오디오 생성 완료.\n`);
            
            if (i < chunks.length - 1) {
-               alog(`⏳ 구글 서버 과열 방지를 위해 15초간 대기합니다...\n`);
-               await new Promise(r => setTimeout(r, 15000));
+               if (engine === 'gemini') {
+                   alog(`⏳ 구글 서버 과열 방지를 위해 15초간 대기합니다...\n`);
+                   await new Promise(r => setTimeout(r, 15000));
+               } else {
+                   // OpenAI allows rapid requests, brief pause
+                   await new Promise(r => setTimeout(r, 1000));
+               }
            }
         }
         
         alog(`\n🚀 ${chunks.length}개의 조각난 오디오 파일을 1개의 무손실 WAV 파일로 병합합니다...`);
-        const finalWavBlob = convertPcmBase64ToWavBlob(base64AudioArray, 24000);
+        // 24kHz is what both models emit for PCM in our usage (openAI can emit 24k default for PCM)
+        const finalWavBlob = convertPcmArrayToWavBlob(base64AudioArray, 24000);
         const finalWavUrl = URL.createObjectURL(finalWavBlob);
         
         audioResultContainer.innerHTML = `
             <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
                 <audio controls src="${finalWavUrl}" style="width: 100%; margin-bottom: 10px;"></audio>
-                <a href="${finalWavUrl}" download="YT_Script_Voice_Enceladus.wav" style="display: block; background: var(--success, #27ae60); color: white; text-align: center; padding: 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 600; box-shadow: 0 2px 10px rgba(39,174,96,0.3);">⬇️ 전체 오디오 파일 다운로드 (.wav)</a>
+                <a href="${finalWavUrl}" download="YT_Script_Voice_${engine}.wav" style="display: block; background: var(--success, #27ae60); color: white; text-align: center; padding: 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 600; box-shadow: 0 2px 10px rgba(39,174,96,0.3);">⬇️ 전체 오디오 파일 다운로드 (.wav)</a>
             </div>
         `;
         alog(`\n✅ 오디오 생성 및 병합 완벽히 성공! 결과물을 다운로드하거나 재생하세요.`);
@@ -945,14 +1006,42 @@ generateAudioBtn.addEventListener('click', async () => {
         window.finalWavBlob = finalWavBlob;
         document.getElementById('videoPanel').style.display = 'block';
         document.getElementById('videoLog').style.display = 'block';
-        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 Whisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
+        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 AutoWhisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
         
     } catch(e) {
         alog(`\n🚨 ERROR: ${e.message}`);
     }
     generateAudioBtn.disabled = false;
-    generateAudioBtn.textContent = "Generate Full Audio (enceladus)";
+    generateAudioBtn.textContent = "Generate Full Audio";
 });
+
+// --- AUDIO UPLOAD LOGIC ---
+const audioUploadInput = document.getElementById('audioUploadInput');
+if (audioUploadInput) {
+    audioUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        window.finalWavBlob = file;
+        const audioUrl = URL.createObjectURL(file);
+        
+        audioResultContainer.innerHTML = `
+            <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
+                <audio controls src="${audioUrl}" style="width: 100%; margin-bottom: 10px;"></audio>
+                <div style="text-align: center; color: var(--success); font-weight: 600;">✅ 업로드된 오디오 파일이 준비되었습니다.</div>
+            </div>
+        `;
+        
+        alog(`\n✅ 사용자가 직접 오디오 파일(${file.name})을 업로드했습니다.`);
+        
+        document.getElementById('videoPanel').style.display = 'block';
+        document.getElementById('videoLog').style.display = 'block';
+        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 AutoWhisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
+        
+        // Reset input so user can re-upload if needed
+        audioUploadInput.value = '';
+    });
+}
 
 // --- VIDEO COMPOSITOR LOGIC ---
 const generateVideoBtn = document.getElementById('generateVideoBtn');
@@ -988,7 +1077,15 @@ generateVideoBtn.addEventListener('click', async () => {
     }
 
     try {
-        vlog(`⏳ 이미지 ${whiskImagesInput.files.length}장을 서버로 전송하고 FFmpeg 줌팬(Zoompan) 필터 렌더링을 시작합니다...\n(영상 길이에 따라 몇 초~수 분 소요)\n`);
+        const pContainer = document.getElementById('videoProgressContainer');
+        const pBar = document.getElementById('videoProgressBar');
+        const pPercent = document.getElementById('videoProgressPercent');
+        
+        if (pContainer) pContainer.style.display = 'block';
+        if (pBar) pBar.style.width = '0%';
+        if (pPercent) pPercent.innerText = '0%';
+        
+        vlog(`⏳ FFmpeg 줌팬 필터 렌더링 서버를 시작합니다...\n(영상 길이에 따라 대략 몇 분 정도 소요됩니다)\n`);
         
         const res = await fetch("http://127.0.0.1:5000/api/make-video", {
             method: "POST",
@@ -1003,29 +1100,103 @@ generateVideoBtn.addEventListener('click', async () => {
             } catch(e) {}
             throw new Error(errMsg);
         }
+        
+        const { job_id } = await res.json();
+        const eventSource = new EventSource(`http://127.0.0.1:5000/api/progress/${job_id}`);
+        
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                eventSource.close();
+                vlog(`\n🚨 SSE ERROR: ${data.error}`);
+                generateVideoBtn.disabled = false;
+                generateVideoBtn.textContent = "Upload & Create Video";
+                return;
+            }
+            
+            if (pBar) pBar.style.width = `${data.progress}%`;
+            if (pPercent) pPercent.innerText = `${data.progress}%`;
+            
+            if (data.status === 'completed') {
+                eventSource.close();
+                vlog(`\n🎉 100% 비디오 렌더링이 성공적으로 완료되었습니다! 파일 다운로드를 시작합니다.`);
+                
+                // Trigger download
+                const a = document.createElement('a');
+                a.href = `http://127.0.0.1:5000/api/download/${job_id}`;
+                a.download = "Final_YouTube_Video.mp4";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                vlog(`\n✅ "Final_YouTube_Video.mp4" 파일 다운로드가 시작되었습니다!`);
+                generateVideoBtn.disabled = false;
+                generateVideoBtn.textContent = "Upload & Create Video";
+            }
+            else if (data.status === 'error') {
+                eventSource.close();
+                vlog(`\n🚨 SERVER ERROR: 렌더링 중 오류가 발생했습니다. (서버 로그 확인 필요)`);
+                if (pContainer) pContainer.children[0].children[0].innerText = 'Error occurred';
+                generateVideoBtn.disabled = false;
+                generateVideoBtn.textContent = "Upload & Create Video";
+            }
+        };
 
-        vlog(`\n🎉 비디오 렌더링이 성공적으로 완료되었습니다! 파일 다운로드를 시작합니다.`);
+        eventSource.onerror = function(err) {
+            console.error("SSE Error:", err);
+            eventSource.close();
+            vlog(`\n🚨 NETWORK ERROR: 진행률 서버와의 연결이 끊어졌습니다.`);
+            generateVideoBtn.disabled = false;
+            generateVideoBtn.textContent = "Upload & Create Video";
+        };
         
-        // 버퍼나 바이너리 파일 처리
-        const videoBlob = await res.blob();
-        const videoUrl = URL.createObjectURL(videoBlob);
-        
-        // 자동 다운로드 처리
-        const a = document.createElement('a');
-        a.href = videoUrl;
-        a.download = "Final_YouTube_Video.mp4";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        vlog(`\n✅ "Final_YouTube_Video.mp4" 파일이 성공적으로 다운로드되었습니다!`);
+        // We do NOT enable the button here. The SSE listeners will handle re-enabling when done.
+        return; // Early return so finally block equivalent is managed by event listener callbacks
 
     } catch (e) {
-        vlog(`\n🚨 ERROR: ${e.message}\n로컬 서버(python3 video_server.py)가 실행 중표인지 반드시 확인해 주세요!`);
+        vlog(`\n🚨 ERROR: ${e.message}\n로컬 서버(python video_server.py)가 켜져 있는지 확인해 주세요!`);
     }
 
     generateVideoBtn.disabled = false;
     generateVideoBtn.textContent = "Upload & Create Video";
 });
+
+// --- SCRIPT UPLOAD RESTORE LOGIC ---
+const uploadExistingScript = document.getElementById('uploadExistingScript');
+if (uploadExistingScript) {
+    uploadExistingScript.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target.result;
+            window.whiskReadyScriptText = text;
+            
+            // Show TTS and Video Panels
+            const ttsPanel = document.getElementById('ttsPanel');
+            const videoPanel = document.getElementById('videoPanel');
+            if (ttsPanel) ttsPanel.style.display = 'block';
+            if (videoPanel) videoPanel.style.display = 'block';
+            
+            // Log output
+            const logEl = document.getElementById('generationLog');
+            if (logEl) {
+                logEl.innerHTML += `\n✅ [RESTORED] Loaded script from ${file.name}!\nLength: ${text.length} chars.\nYou can now generate audio directly.`;
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+            
+            // Show audio log helper prompt
+            const audioLog = document.getElementById('audioLog');
+            if (audioLog) {
+                audioLog.innerText = '✅ Script restored! You can click [Generate Full Audio] to resume processing.';
+            }
+            
+            // Reset input so it works again for same file
+            uploadExistingScript.value = '';
+        };
+        reader.readAsText(file);
+    });
+}
 
 init();
