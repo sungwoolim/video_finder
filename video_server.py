@@ -58,6 +58,7 @@ def process_video_job(job_id, tmp_path_str, script_text):
         # ── Whisper STT: word-level timestamps ────────────────────────────
         JOBS[job_id]["progress"] = 2
         JOBS[job_id]["status"] = "analyzing"
+        JOBS[job_id]["message"] = "Whisper AI 모델로 밀리초(ms) 단위 오디오 타이밍을 추출 중입니다..."
         
         # Whisper 로딩 및 타임스탬프 추출
         model = whisper.load_model("base")
@@ -72,41 +73,99 @@ def process_video_job(job_id, tmp_path_str, script_text):
             for wi in seg.get("words", []):
                 all_words.append(wi)
 
-        # ── Calculate per-image durations using Whisper word alignment ────
-        lines = [l.strip() for l in script_text.split("\n") if l.strip()]
+        import difflib
 
-        if all_words and lines and len(lines) == len(ordered_images):
-            word_idx = 0
-            durations = []
-            prev_end = 0.0
+        # ── Calculate per-image durations using difflib text alignment ────
+        lines = [l.strip() for l in script_text.split("\n") if l.strip()]
+        
+        target_durations = []
+        if all_words and lines:
+            # 1. Map Whisper text to exact timestamps per character
+            whisper_chars = ""
+            char_to_time = []
+            for w in all_words:
+                word_text = w.get("word", "").replace(" ", "")
+                start_time = w.get("start", 0.0)
+                end_time = w.get("end", 0.0)
+                w_len = len(word_text)
+                for i in range(w_len):
+                    whisper_chars += word_text[i]
+                    # Interpolate time for each character
+                    char_time = start_time + (end_time - start_time) * ((i + 1) / w_len)
+                    char_to_time.append(char_time)
             
-            # 대본의 각 라인 글자수에 맞게 실제 오디오 시간을 할당
+            # 2. Build script chars and line boundaries
+            script_chars = ""
+            line_end_indices = []
             for line in lines:
-                char_count = len(line.replace(" ", ""))
-                consumed = 0
-                line_end = prev_end
-                while word_idx < len(all_words) and consumed < char_count:
-                    wi = all_words[word_idx]
-                    consumed += len(wi.get("word", "").replace(" ", ""))
-                    line_end = wi.get("end", line_end)
-                    word_idx += 1
-                durations.append(max(0.1, line_end - prev_end))
-                prev_end = line_end
+                clean_line = line.replace(" ", "")
+                script_chars += clean_line
+                line_end_indices.append(len(script_chars) - 1)
+            
+            # 3. Match script against Whisper text
+            matcher = difflib.SequenceMatcher(None, script_chars, whisper_chars)
+            blocks = matcher.get_matching_blocks()
+            
+            def get_whisper_time(script_idx):
+                if not char_to_time:
+                    return 0.0
                 
-            # 남은 시간(오차)은 마지막 이미지에서 모두 흡수
-            if durations:
-                durations[-1] += max(0.0, total_dur - sum(durations))
-        else:
-            # Whisper 타이밍 추출 실패 시: 단순히 글자 수 기반 전체 시간 비율 분배 (안전망)
-            durations = []
-            if len(lines) != len(ordered_images):
-                dur = total_dur / max(len(ordered_images), 1)
-                durations = [dur] * len(ordered_images)
+                # Check if exact match in block
+                for i, j, n in blocks:
+                    if i <= script_idx < i + n:
+                        w_idx = j + (script_idx - i)
+                        return char_to_time[w_idx]
+                
+                # If not, find the nearest block before it
+                best_j = 0
+                for i, j, n in blocks:
+                    if n == 0: continue
+                    if i <= script_idx:
+                        best_j = j + n - 1
+                    else:
+                        break
+                
+                best_j = min(best_j, len(char_to_time) - 1)
+                return char_to_time[best_j]
+
+            # 4. Extract durations
+            prev_time = 0.0
+            for end_idx in line_end_indices:
+                line_end_time = get_whisper_time(end_idx)
+                
+                # 만약 문장 사이에 실제 정적(침묵)이 길다면, Whisper 다음 단어의 start시간 전까지를 포함시켜야 함.
+                # 하지만 가장 안전한 방법은 일단 line_end_time까지 끊고, 마지막에 total_dur로 보정하는 것
+                dur = max(0.1, line_end_time - prev_time)
+                target_durations.append(dur)
+                prev_time = line_end_time
+                
+            # 남은 오차 시간은 마지막 이미지에서 모두 흡수
+            target_durations[-1] += max(0.0, total_dur - sum(target_durations))
+            
+        elif lines:
+            # Whisper 타이밍 추출 실패 시: 단순히 원본 글자 수 기반 전체 시간 비율 분배
+            total_chars = max(1, sum(len(x.replace(" ", "")) for x in lines))
+            for line in lines:
+                w = len(line.replace(" ", ""))
+                target_durations.append(total_dur * (w / total_chars))
+
+        # 업로드된 이미지 개수와 대본 라인 수(target_durations) 불일치 대응
+        num_images = len(ordered_images)
+        durations = []
+        if target_durations:
+            if len(target_durations) == num_images:
+                durations = target_durations
+            elif len(target_durations) > num_images:
+                JOBS[job_id]["message"] = f"대본 수({len(target_durations)})가 이미지 수({num_images})보다 많아 남은 시간을 마지막 이미지에 병합합니다."
+                durations = target_durations[:num_images-1]
+                durations.append(sum(target_durations[num_images-1:]))
             else:
-                total_chars = max(1, sum(len(x.replace(" ", "")) for x in lines))
-                for line in lines:
-                    w = len(line.replace(" ", ""))
-                    durations.append(total_dur * (w / total_chars))
+                JOBS[job_id]["message"] = f"대본 수({len(target_durations)})가 이미지 수({num_images})보다 작아 남은 이미지에 임의 시간을 배정합니다."
+                durations = target_durations + [1.0] * (num_images - len(target_durations))
+                factor = total_dur / sum(durations)
+                durations = [d * factor for d in durations]
+        else:
+            durations = [total_dur / max(1, num_images)] * num_images
 
         JOBS[job_id]["status"] = "processing"
         JOBS[job_id]["progress"] = 5
@@ -168,12 +227,12 @@ def process_video_job(job_id, tmp_path_str, script_text):
 
             cmd = [
                 "ffmpeg", "-y", "-v", "error",
-                "-i", str(img),
+                "-i", str(img.resolve()),
                 "-vf", vf,
                 "-c:v", "h264_videotoolbox", "-b:v", "5M", "-allow_sw", "1",
                 "-pix_fmt", "yuv420p",
                 "-t", str(dur),
-                str(chunk_file)
+                str(chunk_file.name)
             ]
             subprocess.run(cmd, check=True, cwd=str(tmp_path))
             return i
@@ -187,6 +246,7 @@ def process_video_job(job_id, tmp_path_str, script_text):
                     completed += 1
                     # 5% ~ 95% 구간 진행률 업데이트
                     JOBS[job_id]["progress"] = 5 + int((completed / total_images) * 90)
+                    JOBS[job_id]["message"] = f"비디오 조각 렌더링 중... ({completed} / {total_images} 완료)"
                 except Exception as e:
                     print(f"Chunk render error: {e}")
                     JOBS[job_id]["status"] = "error"
@@ -212,10 +272,12 @@ def process_video_job(job_id, tmp_path_str, script_text):
         ]
         
         JOBS[job_id]["progress"] = 96
+        JOBS[job_id]["message"] = "모든 조각과 오디오 트랙을 1개의 동영상으로 병합 및 정규화 중입니다..."
         subprocess.run(concat_cmd, check=True, cwd=str(tmp_path))
 
         JOBS[job_id]["progress"] = 100
         JOBS[job_id]["status"] = "completed"
+        JOBS[job_id]["message"] = "🎉 렌더링 서버 작업 완료!"
         JOBS[job_id]["file"] = str(out_mp4)
 
     except Exception as e:
@@ -270,7 +332,12 @@ def get_progress(job_id):
                 yield f"data: {{\"error\": \"Job not found\"}}\n\n"
                 break
             job = JOBS[job_id]
-            yield f"data: {{\"progress\": {job['progress']}, \"status\": \"{job['status']}\"}}\n\n"
+            
+            # Message 이스케이프 (줄바꿈이나 따옴표 등)
+            msg = job.get('message', 'Processing...')
+            msg = msg.replace('"', '\\"').replace('\n', ' ')
+            
+            yield f"data: {{\"progress\": {job['progress']}, \"status\": \"{job['status']}\", \"message\": \"{msg}\"}}\n\n"
             if job["status"] in ["completed", "error"]:
                 break
             time.sleep(1)

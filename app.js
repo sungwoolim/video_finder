@@ -78,6 +78,12 @@ const init = () => {
         geminiApiKeyInput.value = savedGeminiKey;
     }
     
+    const savedOpenAiKey = localStorage.getItem('openAiApiKey');
+    const openAiApiKeyEl = document.getElementById('openAiApiKeyInput');
+    if (savedOpenAiKey && openAiApiKeyEl) {
+        openAiApiKeyEl.value = savedOpenAiKey;
+    }
+    
     const savedPrompt = localStorage.getItem('scriptPromptTemplate');
     if (savedPrompt) {
         promptTemplateInput.value = savedPrompt;
@@ -150,6 +156,15 @@ const setupEventListeners = () => {
         }
         applyFiltersAndSort();
     });
+
+    // TTS Engine Selector Toggle
+    const ttsEngineSelect = document.getElementById('ttsEngineSelect');
+    const openAiKeyWrapper = document.getElementById('openAiKeyWrapper');
+    if (ttsEngineSelect && openAiKeyWrapper) {
+        ttsEngineSelect.addEventListener('change', () => {
+            openAiKeyWrapper.style.display = ttsEngineSelect.value === 'openai' ? 'block' : 'none';
+        });
+    }
 
     // Views Input Filter
     viewsInput.addEventListener('input', (e) => {
@@ -745,6 +760,8 @@ Instructions:
             document.getElementById('generationLog').innerHTML += downloadBtnHtml;
             document.getElementById('generationLog').scrollTop = document.getElementById('generationLog').scrollHeight;
 
+            showProofPanel = null; // removed
+
             document.getElementById('ttsPanel').style.display = 'block';
             document.getElementById('audioLog').innerText = '✅ 모든 대본 생성이 완료되었습니다. 이제 [Generate Full Audio] 버튼을 눌러 TTS를 생성할 수 있습니다.';
 
@@ -941,8 +958,12 @@ generateAudioBtn.addEventListener('click', async () => {
     audioResultContainer.innerHTML = "";
     
     const _apiKey = document.getElementById('geminiApiKeyInput').value.trim();
-    const openAiApiKey = document.getElementById('openAiApiKeyInput')?.value.trim();
+    const openAiApiKeyInput = document.getElementById('openAiApiKeyInput');
+    const openAiApiKey = openAiApiKeyInput?.value.trim();
     const engine = document.getElementById('ttsEngineSelect')?.value || 'gemini';
+
+    // Persist OpenAI key
+    if (openAiApiKey) localStorage.setItem('openAiApiKey', openAiApiKey);
     
     // Set chunk size. Gemini fails with 429 often on large chunks (internal limits). OpenAI handles 1500 fine.
     const chunkSize = engine === 'openai' ? 1500 : 800;
@@ -1114,10 +1135,11 @@ generateVideoBtn.addEventListener('click', async () => {
                 generateVideoBtn.textContent = "Upload & Create Video";
                 return;
             }
-            
-            if (pBar) pBar.style.width = `${data.progress}%`;
+                        if (pBar) pBar.style.width = `${data.progress}%`;
             if (pPercent) pPercent.innerText = `${data.progress}%`;
             
+            const pText = document.getElementById('videoProgressText');
+            if (pText && data.message) pText.innerText = data.message;            
             if (data.status === 'completed') {
                 eventSource.close();
                 vlog(`\n🎉 100% 비디오 렌더링이 성공적으로 완료되었습니다! 파일 다운로드를 시작합니다.`);
@@ -1186,11 +1208,10 @@ if (uploadExistingScript) {
                 logEl.scrollTop = logEl.scrollHeight;
             }
             
-            // Show audio log helper prompt
+            // Show ttsPanel and update audioLog
             const audioLog = document.getElementById('audioLog');
-            if (audioLog) {
-                audioLog.innerText = '✅ Script restored! You can click [Generate Full Audio] to resume processing.';
-            }
+            if (ttsPanel) ttsPanel.style.display = 'block';
+            if (audioLog) audioLog.innerText = '✅ Script restored! You can click [Generate Full Audio] to resume processing.';
             
             // Reset input so it works again for same file
             uploadExistingScript.value = '';
