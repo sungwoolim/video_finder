@@ -128,19 +128,44 @@ def process_video_job(job_id, tmp_path_str, script_text):
                 best_j = min(best_j, len(char_to_time) - 1)
                 return char_to_time[best_j]
 
-            # 4. Extract durations
+            # 4. Extract basic matched times
+            raw_durations = []
             prev_time = 0.0
             for end_idx in line_end_indices:
-                line_end_time = get_whisper_time(end_idx)
+                end_t = get_whisper_time(end_idx)
+                raw_durations.append(max(0.1, end_t - prev_time))
+                prev_time = end_t
+            raw_durations[-1] += max(0.0, total_dur - sum(raw_durations))
+            
+            # 5. Outlier smoothing (Pooling anomalies from difflib mismatch)
+            total_script_chars = max(1, sum(len(line.replace(" ", "")) for line in lines))
+            pool_time = 0.0
+            pool_chars = 0
+            pool_indices = []
+            
+            for i, dur in enumerate(raw_durations):
+                char_count = len(lines[i].replace(" ", ""))
+                expected = total_dur * (char_count / total_script_chars)
                 
-                # 만약 문장 사이에 실제 정적(침묵)이 길다면, Whisper 다음 단어의 start시간 전까지를 포함시켜야 함.
-                # 하지만 가장 안전한 방법은 일단 line_end_time까지 끊고, 마지막에 total_dur로 보정하는 것
-                dur = max(0.1, line_end_time - prev_time)
-                target_durations.append(dur)
-                prev_time = line_end_time
-                
-            # 남은 오차 시간은 마지막 이미지에서 모두 흡수
-            target_durations[-1] += max(0.0, total_dur - sum(target_durations))
+                # Pool anomalous durations (either huge jump or missing mapping)
+                if dur > max(15.0, expected * 3) or dur <= 0.11:
+                    pool_time += dur
+                    pool_chars += char_count
+                    pool_indices.append(i)
+                else:
+                    if pool_indices:
+                        for pi in pool_indices:
+                            pi_chars = len(lines[pi].replace(" ", ""))
+                            target_durations.append(pool_time * (pi_chars / max(1, pool_chars)))
+                        pool_indices = []
+                        pool_time = 0.0
+                        pool_chars = 0
+                    target_durations.append(dur)
+                    
+            if pool_indices:
+                for pi in pool_indices:
+                    pi_chars = len(lines[pi].replace(" ", ""))
+                    target_durations.append(pool_time * (pi_chars / max(1, pool_chars)))
             
         elif lines:
             # Whisper 타이밍 추출 실패 시: 단순히 원본 글자 수 기반 전체 시간 비율 분배
