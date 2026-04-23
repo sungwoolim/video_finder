@@ -62,7 +62,11 @@ const closeGeneratorBtn = document.getElementById('closeGeneratorBtn');
 const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
 const promptTemplateInput = document.getElementById('promptTemplateInput');
 const lengthOptionSelect = document.getElementById('lengthOptionSelect');
+const videoTopicInput = document.getElementById('videoTopicInput');
+const recommendTopicBtn = document.getElementById('recommendTopicBtn');
+const topicRecommendationResult = document.getElementById('topicRecommendationResult');
 const startGenerationBtn = document.getElementById('startGenerationBtn');
+const pauseResumeBtn = document.getElementById('pauseResumeBtn');
 const generationLog = document.getElementById('generationLog');
 
 // Initialization
@@ -541,6 +545,54 @@ if (closeGeneratorBtn) {
     });
 }
 
+// Topic Recommendation Logic
+if (recommendTopicBtn) {
+    recommendTopicBtn.addEventListener('click', async () => {
+        const geminiKey = geminiApiKeyInput.value.trim();
+        if (!geminiKey) {
+            alert("Please enter a Gemini API Key first!");
+            return;
+        }
+        
+        if (selectedVideoIds.size === 0) {
+            alert("영상을 한 개 이상 선택해야 주제를 추천받을 수 있습니다.");
+            return;
+        }
+
+        recommendTopicBtn.disabled = true;
+        recommendTopicBtn.textContent = "추천 중...";
+        topicRecommendationResult.style.display = 'block';
+        topicRecommendationResult.style.color = "var(--text-secondary)";
+        topicRecommendationResult.textContent = "선택된 영상 제목들을 분석하여 채널에 어울리는 최적의 바이럴 기획을 구상 중입니다...";
+
+        try {
+            const selectedTitles = Array.from(selectedVideoIds).map(id => {
+                const videoData = currentData.find(v => v.id === id);
+                return videoData ? videoData.title : 'Unknown Video';
+            });
+            
+            const prompt = `You are a viral YouTube content strategist. I selected the following successful videos on YouTube.
+Selected Titles:
+${selectedTitles.join('\n')}
+
+Based on these titles, recommend 5 highly engaging and viral YouTube video topic ideas (in Korean) that I can make. 
+Make them sound curious and clickable. Output them as a numbered list. Do not add any extra conversational filler.`;
+
+            const ideas = await callGemini(geminiKey, prompt);
+            
+            topicRecommendationResult.style.color = "var(--success)";
+            topicRecommendationResult.innerHTML = `<strong>💡 AI 추천 주제 아이디어:</strong><br>${ideas.replace(/\n/g, '<br>')}<br><span style="color:var(--text-secondary); font-size: 0.8rem; margin-top: 0.5rem; display: block;">(위 추천 중 마음에 드는 주제를 영상 주제 입력창에 복사/작성해 주세요!)</span>`;
+            
+        } catch (e) {
+            topicRecommendationResult.style.color = "var(--danger)";
+            topicRecommendationResult.textContent = `추천 실패: ${e.message}`;
+        }
+        
+        recommendTopicBtn.disabled = false;
+        recommendTopicBtn.textContent = "주제 추천받기";
+    });
+}
+
 // ----------------------------------------------------
 // PART 2 & 3: TRANSCRIPT + SCRIPT GENERATION LOGIC
 // ----------------------------------------------------
@@ -615,6 +667,41 @@ async function callGemini(apiKey, promptText) {
     throw new Error(`All available AI models are currently busy or unavailable. Last message: ${lastErrorMsg}\\n\\nTip: Wait a few minutes before trying again.`);
 }
 
+// --- PAUSE MANAGER ---
+const pauseManager = {
+    isPaused: false,
+    resolveFunc: null,
+    async check(logFn) {
+        if (this.isPaused) {
+            if (logFn) logFn("\n⏸ 작업이 일시정지되었습니다. [▶ 계속하기]를 눌러 다시 시작하세요...");
+            await new Promise(r => this.resolveFunc = r);
+            if (logFn) logFn("▶ 작업이 재개되었습니다!\n");
+        }
+    },
+    toggle() {
+        if (!pauseResumeBtn) return;
+        if (this.isPaused) {
+            this.isPaused = false;
+            if (this.resolveFunc) this.resolveFunc();
+            this.resolveFunc = null;
+            pauseResumeBtn.textContent = "⏸ 일시정지";
+            pauseResumeBtn.style.background = "var(--warning, #f59e0b)";
+            pauseResumeBtn.style.color = "black";
+        } else {
+            this.isPaused = true;
+            pauseResumeBtn.textContent = "▶ 계속하기";
+            pauseResumeBtn.style.background = "var(--success, #27ae60)";
+            pauseResumeBtn.style.color = "white";
+        }
+    }
+};
+
+if (pauseResumeBtn) {
+    pauseResumeBtn.addEventListener('click', () => {
+        pauseManager.toggle();
+    });
+}
+
 if (startGenerationBtn) {
     startGenerationBtn.addEventListener('click', async () => {
         const geminiKey = geminiApiKeyInput.value.trim();
@@ -640,10 +727,19 @@ if (startGenerationBtn) {
         if (lengthSelection === "Short") targetCharCount = 3000;
         if (lengthSelection === "Long") targetCharCount = 10000;
 
+        const videoTopic = videoTopicInput ? videoTopicInput.value.trim() : '';
+
         const stepCharTarget = Math.floor(targetCharCount / steps.length);
 
         startGenerationBtn.disabled = true;
         startGenerationBtn.textContent = "Processing...";
+        if (pauseResumeBtn) {
+            pauseResumeBtn.style.display = 'block';
+            pauseManager.isPaused = false;
+            pauseResumeBtn.textContent = "⏸ 일시정지";
+            pauseResumeBtn.style.background = "var(--warning, #f59e0b)";
+            pauseResumeBtn.style.color = "black";
+        }
         generationLog.innerHTML = "";
 
         const log = (msg) => {
@@ -658,6 +754,7 @@ if (startGenerationBtn) {
             const idsArray = Array.from(selectedVideoIds);
 
             for (const vid of idsArray) {
+                await pauseManager.check(log);
                 const videoData = currentData.find(v => v.id === vid);
                 const title = videoData ? videoData.title : 'Unknown Title';
                 log(`Extracting transcript for video ID: ${vid} (${idx}/${idsArray.length})...`);
@@ -697,11 +794,23 @@ if (startGenerationBtn) {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
             for (let i = 0; i < steps.length; i++) {
+                await pauseManager.check(log);
                 const currentStep = steps[i];
                 log(`\\n▶ Generating Part ${i + 1}/${steps.length}: [ ${currentStep} ]...`);
 
+                let extra_instructions = "";
+                if (i === 0) {
+                    extra_instructions = `\nCRITICAL REQUIREMENT FOR THE FIRST SENTENCE: 
+The VERY FIRST sentence of your response MUST be a question that starts with the exact word "여러분" and ends with "까?". (e.g. "여러분, ~~~ 고민해본 적 있으신가요?")
+This starting question MUST present a deeply relatable concern, fear, or common misunderstanding extracted from the <transcripts>, making the viewer immediately think "Wait, is this about me?".`;
+                } else {
+                    extra_instructions = `\nCRITICAL ENFORCEMENT FOR THIS STEP:
+DO NOT use the word "여러분" or the phrase "여러분 ~~ 까?" anywhere in your response. DO NOT write another hook question. It has already been covered previously and MUST NOT BE REPEATED. Focus entirely on the content for this exact step.`;
+                }
+
                 const prompt = `You are a professional YouTube scriptwriter. We are building a script step-by-step to reach a total length of approximately ${targetCharCount} characters.
 This step focuses EXCLUSIVELY on: "${currentStep}".
+Target Theme/Topic: "${videoTopic || '선택된 영상들의 공통된 핵심 인사이트'}"
 Target character count for this specific segment: ~${stepCharTarget} characters.
 
 Base Reference Material (Raw Transcripts):
@@ -718,7 +827,8 @@ Instructions:
 1. Write ONLY the content for the current step ("${currentStep}").
 2. Ensure the tone is engaging and natural for a YouTube video.
 3. The content must logically inherit the context of the <previous_script> and transition smoothly.
-4. Output just the raw script text. Do not add metadata, prefixes, or conversational filler like "Here is the next part".`;
+4. Output just the raw script text. Do not add metadata, prefixes, or conversational filler like "Here is the next part".
+5. IMPORTANT TONE RULE: The entire script MUST be written strictly in formal/polite Korean using "~입니다", "~습니다", "~합니까?" endings (하십시오체). Do NOT use informal or plain endings like "~해요", "~요", "~한다", or "~이다".${extra_instructions}`;
 
                 const stepContent = await callGemini(geminiKey, prompt);
                 accumulatedScript += `\n\n[ ${currentStep} ]\n` + stepContent.trim();
@@ -767,10 +877,13 @@ Instructions:
 
         } catch(e) {
             log(`\\n🚨 ERROR: ${e.message}`);
+        } finally {
+            startGenerationBtn.disabled = false;
+            startGenerationBtn.textContent = "Start Multi-step Generation";
+            if (pauseResumeBtn) {
+                pauseResumeBtn.style.display = 'none';
+            }
         }
-
-        startGenerationBtn.disabled = false;
-        startGenerationBtn.textContent = "Start Multi-step Generation";
     });
 }
 
