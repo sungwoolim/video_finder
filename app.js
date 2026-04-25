@@ -36,7 +36,8 @@ let sortState = {
     descending: true
 };
 
-let selectedVideoIds = new Set();
+let selectedVideosMap = new Map(); // Global storage for selected videos: Map(id -> videoObject)
+let selectedVideoIds = new Set(); // We'll keep this for convenience, but sync it with selectedVideosMap
 
 // Elements
 const tableBody = document.getElementById('tableBody');
@@ -68,6 +69,9 @@ const topicRecommendationResult = document.getElementById('topicRecommendationRe
 const startGenerationBtn = document.getElementById('startGenerationBtn');
 const pauseResumeBtn = document.getElementById('pauseResumeBtn');
 const generationLog = document.getElementById('generationLog');
+const basketList = document.getElementById('basketList');
+const basketCount = document.getElementById('basketCount');
+const clearBasketBtn = document.getElementById('clearBasketBtn');
 
 // Initialization
 const init = () => {
@@ -191,6 +195,59 @@ const setupEventListeners = () => {
             applyFiltersAndSort();
         });
     });
+
+    // Clear Basket
+    if (clearBasketBtn) {
+        clearBasketBtn.addEventListener('click', () => {
+            if (confirm("모든 선택 내역을 삭제할까요?")) {
+                selectedVideosMap.clear();
+                syncSelectedIds();
+                renderBasket();
+                updateUI();
+                updateFabVisibility();
+                if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            }
+        });
+    }
+};
+
+const syncSelectedIds = () => {
+    selectedVideoIds = new Set(selectedVideosMap.keys());
+};
+
+const renderBasket = () => {
+    if (!basketList) return;
+    
+    basketList.innerHTML = '';
+    basketCount.textContent = selectedVideosMap.size;
+
+    if (selectedVideosMap.size === 0) {
+        basketList.innerHTML = `<div style="color: var(--text-secondary); font-size: 0.85rem; padding: 1rem; text-align: center;">영상을 선택하면<br>여기에 표시됩니다.</div>`;
+        return;
+    }
+
+    selectedVideosMap.forEach((video, id) => {
+        const li = document.createElement('li');
+        li.className = 'basket-item';
+        li.innerHTML = `
+            <div class="basket-item-info" title="${video.title}">${video.title}</div>
+            <button class="basket-item-remove" data-id="${id}">&times;</button>
+        `;
+        basketList.appendChild(li);
+    });
+
+    // Add remove listeners
+    basketList.querySelectorAll('.basket-item-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            selectedVideosMap.delete(id);
+            syncSelectedIds();
+            renderBasket();
+            updateUI();
+            updateFabVisibility();
+            updateSelectAllState();
+        });
+    });
 };
 
 const fetchVideos = async () => {
@@ -204,9 +261,9 @@ const fetchVideos = async () => {
     }
 
     filterState.search = query.toLowerCase();
-
-    // Clear previous selections on new search
-    selectedVideoIds.clear();
+    
+    // REMOVED: selectedVideoIds.clear() - We want persistence!
+    
     updateFabVisibility();
     if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
@@ -473,8 +530,16 @@ const updateUI = () => {
     document.querySelectorAll('.video-select').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const id = e.target.getAttribute('data-id');
-            if (e.target.checked) selectedVideoIds.add(id);
-            else selectedVideoIds.delete(id);
+            const videoObj = currentData.find(v => v.id === id);
+            
+            if (e.target.checked) {
+                if (videoObj) selectedVideosMap.set(id, videoObj);
+            } else {
+                selectedVideosMap.delete(id);
+            }
+            
+            syncSelectedIds();
+            renderBasket();
             updateFabVisibility();
             updateSelectAllState();
         });
@@ -482,9 +547,9 @@ const updateUI = () => {
 };
 
 const updateFabVisibility = () => {
-    if (selectedVideoIds.size > 0) {
+    if (selectedVideosMap.size > 0) {
         fabContainer.style.display = 'block';
-        selectedCount.textContent = selectedVideoIds.size;
+        selectedCount.textContent = selectedVideosMap.size;
     } else {
         fabContainer.style.display = 'none';
     }
@@ -511,9 +576,16 @@ if (selectAllCheckbox) {
         document.querySelectorAll('.video-select').forEach(checkbox => {
             checkbox.checked = isChecked;
             const id = checkbox.getAttribute('data-id');
-            if (isChecked) selectedVideoIds.add(id);
-            else selectedVideoIds.delete(id);
+            const videoObj = currentData.find(v => v.id === id);
+            
+            if (isChecked) {
+                if (videoObj) selectedVideosMap.set(id, videoObj);
+            } else {
+                selectedVideosMap.delete(id);
+            }
         });
+        syncSelectedIds();
+        renderBasket();
         updateFabVisibility();
     });
 }
@@ -566,10 +638,7 @@ if (recommendTopicBtn) {
         topicRecommendationResult.textContent = "선택된 영상 제목들을 분석하여 채널에 어울리는 최적의 바이럴 기획을 구상 중입니다...";
 
         try {
-            const selectedTitles = Array.from(selectedVideoIds).map(id => {
-                const videoData = currentData.find(v => v.id === id);
-                return videoData ? videoData.title : 'Unknown Video';
-            });
+            const selectedTitles = Array.from(selectedVideosMap.values()).map(v => v.title);
             
             const prompt = `You are a viral YouTube content strategist. I selected the following successful videos on YouTube.
 Selected Titles:
@@ -755,7 +824,7 @@ if (startGenerationBtn) {
 
             for (const vid of idsArray) {
                 await pauseManager.check(log);
-                const videoData = currentData.find(v => v.id === vid);
+                const videoData = selectedVideosMap.get(vid);
                 const title = videoData ? videoData.title : 'Unknown Title';
                 log(`Extracting transcript for video ID: ${vid} (${idx}/${idsArray.length})...`);
                 // Calls Cloudflare Function

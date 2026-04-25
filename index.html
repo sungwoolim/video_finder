@@ -95,24 +95,38 @@
                 </div>
             </div>
 
-            <div class="table-container">
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox"></th>
-                                <th>Video</th>
-                                <th class="sortable" data-sort="date">Upload Date</th>
-                                <th class="sortable" data-sort="views">Views</th>
-                                <th class="sortable" data-sort="subs">Subscribers (Real)</th>
-                                <th class="sortable" data-sort="impressions">Impressions (Est.)</th>
-                                <th class="sortable desc" data-sort="ctr">CTR (Est.)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                            <!-- Rows will be populated by JS -->
-                        </tbody>
-                    </table>
+            <div class="content-layout">
+                <div class="table-area">
+                    <div class="table-container">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox"></th>
+                                        <th>Video</th>
+                                        <th class="sortable" data-sort="date">Upload Date</th>
+                                        <th class="sortable" data-sort="views">Views</th>
+                                        <th class="sortable" data-sort="subs">Subscribers (Real)</th>
+                                        <th class="sortable" data-sort="impressions">Impressions (Est.)</th>
+                                        <th class="sortable desc" data-sort="ctr">CTR (Est.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                    <!-- Rows will be populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="basket-area" id="basketArea">
+                    <div class="basket-title">
+                        <span>Selected Videos (<span id="basketCount">0</span>)</span>
+                        <button id="clearBasketBtn" style="background: none; border: 1px solid var(--glass-border); color: var(--text-secondary); font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer;">Clear All</button>
+                    </div>
+                    <ul class="basket-list" id="basketList">
+                        <div style="color: var(--text-secondary); font-size: 0.85rem; padding: 1rem; text-align: center;">영상을 선택하면<br>여기에 표시됩니다.</div>
+                    </ul>
                 </div>
             </div>
         </main>
