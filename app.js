@@ -36,8 +36,13 @@ let sortState = {
     descending: true
 };
 
+<<<<<<< HEAD
 let selectedVideosMap = new Map(); // Global storage for selected videos: Map(id -> videoObject)
 let selectedVideoIds = new Set(); // We'll keep this for convenience, but sync it with selectedVideosMap
+=======
+let selectedVideoIds = new Set();
+let selectedVideosMap = new Map();
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
 
 // Elements
 const tableBody = document.getElementById('tableBody');
@@ -72,77 +77,63 @@ const generationLog = document.getElementById('generationLog');
 const basketList = document.getElementById('basketList');
 const basketCount = document.getElementById('basketCount');
 const clearBasketBtn = document.getElementById('clearBasketBtn');
+<<<<<<< HEAD
+=======
+const recommendTopicBtn = document.getElementById('recommendTopicBtn');
+const topicRecommendationResult = document.getElementById('topicRecommendationResult');
+const videoTopicInput = document.getElementById('videoTopicInput');
+
+// Manual Prompt Elements
+const generatePromptsOnlyBtn = document.getElementById('generatePromptsOnlyBtn');
+const manualScriptInput = document.getElementById('manualScriptInput');
+const manualPromptLog = document.getElementById('manualPromptLog');
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
 
 // Initialization
 const init = () => {
-    // Load saved API keys and prompts
     const savedKey = localStorage.getItem('ytApiKey');
-    if (savedKey) {
-        apiKeyInput.value = savedKey;
-    }
+    if (savedKey) apiKeyInput.value = savedKey;
     
     const savedGeminiKey = localStorage.getItem('geminiApiKey');
-    if (savedGeminiKey) {
-        geminiApiKeyInput.value = savedGeminiKey;
-    }
-    
-    const savedOpenAiKey = localStorage.getItem('openAiApiKey');
-    const openAiApiKeyEl = document.getElementById('openAiApiKeyInput');
-    if (savedOpenAiKey && openAiApiKeyEl) {
-        openAiApiKeyEl.value = savedOpenAiKey;
-    }
+    if (savedGeminiKey) geminiApiKeyInput.value = savedGeminiKey;
     
     const savedPrompt = localStorage.getItem('scriptPromptTemplate');
-    if (savedPrompt) {
-        promptTemplateInput.value = savedPrompt;
-    }
+    if (savedPrompt) promptTemplateInput.value = savedPrompt;
     
     setupEventListeners();
     updateUI();
 };
 
 const setupEventListeners = () => {
-    // Save API Key
     saveApiKeyBtn.addEventListener('click', () => {
         const key = apiKeyInput.value.trim();
         if (key) {
             localStorage.setItem('ytApiKey', key);
-            apiKeyStatus.textContent = "API Key saved to your browser!";
+            apiKeyStatus.textContent = "API Key saved!";
             apiKeyStatus.style.color = "var(--success)";
             apiKeyStatus.style.display = 'block';
             setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
         } else {
             localStorage.removeItem('ytApiKey');
             apiKeyStatus.textContent = "API Key removed!";
-            apiKeyStatus.style.color = "var(--text-secondary)";
             apiKeyStatus.style.display = 'block';
             setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
         }
     });
 
-    // Search
     searchBtn.addEventListener('click', fetchVideos);
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') fetchVideos();
-    });
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchVideos(); });
 
-    // Date Filters
     dateChips.forEach(chip => {
         chip.addEventListener('click', () => {
-            if (filterState.date === chip.dataset.value) return;
             dateChips.forEach(c => c.classList.remove('active'));
             chip.classList.add('active');
             filterState.date = chip.dataset.value;
-            
-            if (searchInput.value.trim()) {
-                fetchVideos();
-            } else {
-                applyFiltersAndSort();
-            }
+            if (searchInput.value.trim()) fetchVideos();
+            else applyFiltersAndSort();
         });
     });
 
-    // Length Filters
     lengthChips.forEach(chip => {
         chip.addEventListener('click', () => {
             lengthChips.forEach(c => c.classList.remove('active'));
@@ -152,7 +143,6 @@ const setupEventListeners = () => {
         });
     });
 
-    // Subs Slider Filter
     subsRange.addEventListener('input', (e) => {
         let val = parseInt(e.target.value);
         if (val >= 5000000) {
@@ -165,37 +155,22 @@ const setupEventListeners = () => {
         applyFiltersAndSort();
     });
 
-    // TTS Engine Selector Toggle
-    const ttsEngineSelect = document.getElementById('ttsEngineSelect');
-    const openAiKeyWrapper = document.getElementById('openAiKeyWrapper');
-    if (ttsEngineSelect && openAiKeyWrapper) {
-        ttsEngineSelect.addEventListener('change', () => {
-            openAiKeyWrapper.style.display = ttsEngineSelect.value === 'openai' ? 'block' : 'none';
-        });
-    }
-
-    // Views Input Filter
     viewsInput.addEventListener('input', (e) => {
         let val = parseInt(e.target.value);
-        if (isNaN(val) || val < 0) val = 0;
-        filterState.viewsMin = val;
+        filterState.viewsMin = isNaN(val) ? 0 : val;
         applyFiltersAndSort();
     });
 
-    // Sorting headers
     headers.forEach(header => {
         header.addEventListener('click', () => {
             const column = header.dataset.sort;
-            if (sortState.column === column) {
-                sortState.descending = !sortState.descending;
-            } else {
-                sortState.column = column;
-                sortState.descending = true;
-            }
+            if (sortState.column === column) sortState.descending = !sortState.descending;
+            else { sortState.column = column; sortState.descending = true; }
             applyFiltersAndSort();
         });
     });
 
+<<<<<<< HEAD
     // Clear Basket
     if (clearBasketBtn) {
         clearBasketBtn.addEventListener('click', () => {
@@ -248,217 +223,108 @@ const renderBasket = () => {
             updateSelectAllState();
         });
     });
+=======
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('.video-select').forEach(cb => {
+                cb.checked = isChecked;
+                const id = cb.dataset.id;
+                if (isChecked) {
+                    selectedVideoIds.add(id);
+                    const obj = currentData.find(v => v.id === id);
+                    if (obj) selectedVideosMap.set(id, obj);
+                } else {
+                    selectedVideoIds.delete(id);
+                    selectedVideosMap.delete(id);
+                }
+            });
+            updateFabVisibility();
+            updateBasketView();
+        });
+    }
+
+    if (extractScriptBtn) {
+        extractScriptBtn.addEventListener('click', () => {
+            if (geminiApiKeyInput.value) localStorage.setItem('geminiApiKey', geminiApiKeyInput.value);
+            localStorage.setItem('scriptPromptTemplate', promptTemplateInput.value);
+            document.querySelector('.search-container').style.display = 'none';
+            document.querySelector('.filters-panel').style.display = 'none';
+            document.querySelector('.table-container').style.display = 'none';
+            fabContainer.style.display = 'none';
+            generatorView.style.display = 'block';
+        });
+    }
+
+    if (closeGeneratorBtn) {
+        closeGeneratorBtn.addEventListener('click', () => {
+            document.querySelector('.search-container').style.display = 'block';
+            document.querySelector('.filters-panel').style.display = 'block';
+            document.querySelector('.table-container').style.display = 'block';
+            generatorView.style.display = 'none';
+            updateFabVisibility();
+        });
+    }
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
 };
 
 const fetchVideos = async () => {
     const query = searchInput.value.trim();
     if (!query) return;
-
     const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-        alert("Please enter & save your YouTube API Key at the top first!");
-        return;
-    }
+    if (!apiKey) { alert("Please enter YouTube API Key!"); return; }
 
     filterState.search = query.toLowerCase();
+<<<<<<< HEAD
     
     // REMOVED: selectedVideoIds.clear() - We want persistence!
     
+=======
+    selectedVideoIds.clear();
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
     updateFabVisibility();
-    if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
-    tableBody.innerHTML = `
-        <tr>
-            <td colspan="7">
-                <div class="empty-state">
-                    <h2>Loading data from YouTube...</h2>
-                </div>
-            </td>
-        </tr>
-    `;
+    tableBody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h2>Loading...</h2></div></td></tr>`;
 
     try {
-        // 1. Fetch Search List
-        let dateQuery = '';
-        if (filterState.date !== 'all') {
-            const now = new Date();
-            if (filterState.date === 'week') now.setDate(now.getDate() - 7);
-            else if (filterState.date === 'month') now.setMonth(now.getMonth() - 1);
-            else if (filterState.date === 'year') now.setFullYear(now.getFullYear() - 1);
-            dateQuery = `&publishedAfter=${now.toISOString()}`;
-        }
-        
-        let allItems = [];
-        let pageToken = '';
-        let pagesFetched = 0;
-        const MAX_PAGES = 5; // Fetch up to 150 results (30 * 5)
-        
-        while (pagesFetched < MAX_PAGES) {
-            const pageQuery = pageToken ? `&pageToken=${pageToken}` : '';
-            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=30&q=${encodeURIComponent(query)}&type=video${dateQuery}${pageQuery}&key=${apiKey}`;
-            const searchRes = await fetch(searchUrl);
-            if (!searchRes.ok) {
-                const err = await searchRes.json();
-                throw new Error(err.error?.message || "YouTube Search API Error");
-            }
-            const searchData = await searchRes.json();
-            
-            if (searchData.items && searchData.items.length > 0) {
-                allItems = allItems.concat(searchData.items);
-            }
-            
-            pageToken = searchData.nextPageToken;
-            pagesFetched++;
-            
-            if (!pageToken) break; // No more pages
-        }
-        
-        if (allItems.length === 0) {
-            MOCK_DATA = [];
-            applyFiltersAndSort();
-            return;
-        }
+        const searchRes = await fetch(`http://127.0.0.1:5001/api/search?query=${encodeURIComponent(query)}`);
+        const searchData = await searchRes.json();
+        if (!searchRes.ok) throw new Error(searchData.error || "Search API Error");
 
-        const videoIds = allItems.map(item => item.id.videoId).filter(id => id);
-        const channelIds = [...new Set(allItems.map(item => item.snippet.channelId))];
+        if (searchData.length === 0) { MOCK_DATA = []; applyFiltersAndSort(); return; }
 
-        // 2. Fetch Video Details (in batches of 50)
-        const statsMap = {};
-        for (let i = 0; i < videoIds.length; i += 50) {
-            const batchIds = videoIds.slice(i, i + 50);
-            const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${batchIds.join(',')}&key=${apiKey}`;
-            const videosRes = await fetch(videosUrl);
-            if (!videosRes.ok) throw new Error("YouTube Videos API Error");
-            const videosData = await videosRes.json();
-            
-            if (videosData.items) {
-                videosData.items.forEach(v => {
-                    let durationStr = v.contentDetails?.duration || 'PT0S';
-                    let totalSeconds = 0;
-                    const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-                    if (match) {
-                        const h = match[1] ? parseInt(match[1]) : 0;
-                        const m = match[2] ? parseInt(match[2]) : 0;
-                        const s = match[3] ? parseInt(match[3]) : 0;
-                        totalSeconds = (h * 3600) + (m * 60) + s;
-                    }
-                    statsMap[v.id] = {
-                        viewCount: parseInt(v.statistics?.viewCount || '0'),
-                        duration: totalSeconds
-                    };
-                });
-            }
-        }
+        // 파이썬 서버에서 받아온 데이터를 MOCK_DATA 형식으로 변환
+        MOCK_DATA = searchData.map(item => ({
+            id: item.videoId,
+            title: item.title,
+            channel: "YouTube Video", // 기본값
+            duration: 0, // 상세 정보는 나중에 채워짐
+            views: 0,
+            subs: 0,
+            thumb: item.thumbnail,
+            publishedAt: new Date().toISOString()
+        }));
 
-        // 3. Fetch Channel Stats (in batches of 50)
-        const chanStatsMap = {};
-        for (let i = 0; i < channelIds.length; i += 50) {
-            const batchIds = channelIds.slice(i, i + 50);
-            const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${batchIds.join(',')}&key=${apiKey}`;
-            const channelsRes = await fetch(channelsUrl);
-            if (!channelsRes.ok) throw new Error("YouTube Channels API Error");
-            const channelsData = await channelsRes.json();
-            
-            if (channelsData.items) {
-                channelsData.items.forEach(c => {
-                    chanStatsMap[c.id] = parseInt(c.statistics?.subscriberCount || '0');
-                });
-            }
-        }
-
-        // Combine
-        const escapeHTML = (str) => {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        };
-        
-        const results = [];
-        for (const item of allItems) {
-            const vid = item.id.videoId;
-            if (!vid) continue;
-            const snippet = item.snippet;
-            
-            const stats = statsMap[vid] || { viewCount: 0, duration: 0 };
-            const views = stats.viewCount;
-            
-            const fakeCtr = Number((Math.random() * (12.0 - 3.0) + 3.0).toFixed(1));
-            const fakeImpressions = views > 0 ? Math.floor(views / (fakeCtr / 100)) : 0;
-            const realSubs = chanStatsMap[snippet.channelId] || 0;
-            
-            const thumbUrl = snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url;
-
-            results.push({
-                id: vid,
-                title: escapeHTML(snippet.title),
-                channel: snippet.channelTitle,
-                duration: stats.duration,
-                views: views,
-                subs: realSubs,
-                impressions: fakeImpressions,
-                ctr: fakeCtr,
-                thumb: thumbUrl,
-                publishedAt: snippet.publishedAt || ''
-            });
-        }
-
-        MOCK_DATA = results;
         applyFiltersAndSort();
-
-    } catch (error) {
-        console.error(error);
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="6">
-                    <div class="empty-state" style="color: var(--danger)">
-                        <h2>Error loading data</h2>
-                        <p>${error.message}</p>
-                    </div>
-                </td>
-            </tr>
-        `;
+    } catch (e) {
+        tableBody.innerHTML = `<tr><td colspan="7"><div class="empty-state" style="color:var(--danger)"><h2>Error</h2><p>${e.message}</p></div></td></tr>`;
     }
 };
 
 const applyFiltersAndSort = () => {
-    let filtered = MOCK_DATA.filter(video => {
-
-        if (filterState.length === 'shorts' && video.duration >= 60) return false;
-        if (filterState.length === 'medium' && (video.duration < 60 || video.duration > 1200)) return false; 
-        if (filterState.length === 'long' && video.duration <= 1200) return false;
-
-        if (filterState.date !== 'all') {
-            const pubDate = new Date(video.publishedAt);
-            const now = new Date();
-            let limitDate = new Date();
-            if (filterState.date === 'week') limitDate.setDate(now.getDate() - 7);
-            else if (filterState.date === 'month') limitDate.setMonth(now.getMonth() - 1);
-            else if (filterState.date === 'year') limitDate.setFullYear(now.getFullYear() - 1);
-            if (pubDate < limitDate) return false;
-        }
-
-        if (video.subs > filterState.subsMax) return false;
-        if (video.views < filterState.viewsMin) return false;
-
+    let filtered = MOCK_DATA.filter(v => {
+        if (filterState.length === 'shorts' && v.duration >= 60) return false;
+        if (filterState.length === 'medium' && (v.duration < 60 || v.duration > 1200)) return false;
+        if (filterState.length === 'long' && v.duration <= 1200) return false;
+        if (v.subs > filterState.subsMax) return false;
+        if (v.views < filterState.viewsMin) return false;
         return true;
     });
 
     filtered.sort((a, b) => {
-        let comparison = 0;
-        
-        if (sortState.column === 'date') {
-            const timeA = new Date(a.publishedAt).getTime() || 0;
-            const timeB = new Date(b.publishedAt).getTime() || 0;
-            if (timeA > timeB) comparison = 1;
-            else if (timeA < timeB) comparison = -1;
-        } else {
-            let valA = a[sortState.column];
-            let valB = b[sortState.column];
-            if (valA > valB) comparison = 1;
-            else if (valA < valB) comparison = -1;
-        }
-
-        return sortState.descending ? comparison * -1 : comparison;
+        let valA = a[sortState.column], valB = b[sortState.column];
+        if (sortState.column === 'date') { valA = new Date(a.publishedAt); valB = new Date(b.publishedAt); }
+        return sortState.descending ? (valA < valB ? 1 : -1) : (valA > valB ? 1 : -1);
     });
 
     currentData = filtered;
@@ -466,66 +332,22 @@ const applyFiltersAndSort = () => {
 };
 
 const updateUI = () => {
-    headers.forEach(th => {
-        th.classList.remove('asc', 'desc');
-        if (th.dataset.sort === sortState.column) {
-            th.classList.add(sortState.descending ? 'desc' : 'asc');
-        }
-    });
-
     tableBody.innerHTML = '';
-
-    if (currentData.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="7">
-                    <div class="empty-state">
-                        <h2>No videos found</h2>
-                        <p>Search for a topic or adjust filters to view results.</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    currentData.forEach(video => {
+    currentData.forEach(v => {
         const tr = document.createElement('tr');
-        
-        const viewsStr = formatNumber(video.views);
-        const subsStr = formatNumber(video.subs);
-        const impressionsStr = formatNumber(video.impressions);
-        
-        const durationDisplay = video.duration < 60 ? 'SHORTS' : formatDuration(video.duration);
-        const isChecked = selectedVideoIds.has(video.id) ? 'checked' : '';
-
         tr.innerHTML = `
-            <td style="text-align: center; vertical-align: middle;">
-                <input type="checkbox" class="video-select" data-id="${video.id}" ${isChecked}>
-            </td>
-            <td>
-                <div class="video-cell">
-                    <a href="https://youtube.com/watch?v=${video.id}" target="_blank" style="text-decoration:none; display:flex; shrink:0; justify-content:center;">
-                        <img src="${video.thumb}" alt="Thumbnail" class="thumbnail" onerror="this.src='https://images.unsplash.com/photo-1611162617474-5b21e879e113?ixlib=rb-4.0.3&auto=format&fit=crop&w=120&q=80'">
-                    </a>
-                    <div class="video-info">
-                        <div class="video-title">
-                            <a href="https://youtube.com/watch?v=${video.id}" target="_blank" style="color:var(--text-primary); text-decoration:none;">${video.title}</a>
-                        </div>
-                        <div class="channel-name">${video.channel}</div>
-                        <div class="duration-badge">${durationDisplay}</div>
-                    </div>
-                </div>
-            </td>
-            <td class="metric-cell" style="color: var(--text-secondary)">${formatDate(video.publishedAt)}</td>
-            <td class="metric-cell">${viewsStr}</td>
-            <td class="metric-cell">${subsStr}</td>
-            <td class="metric-cell">${impressionsStr}</td>
-            <td class="metric-cell" style="color: ${video.ctr > 10 ? 'var(--success)' : 'inherit'}">${video.ctr.toFixed(1)}%</td>
+            <td style="text-align:center"><input type="checkbox" class="video-select" data-id="${v.id}" ${selectedVideoIds.has(v.id)?'checked':''}></td>
+            <td><div class="video-cell"><img src="${v.thumb}" class="thumbnail"><div class="video-info"><div class="video-title">${v.title}</div><div class="channel-name">${v.channel}</div></div></div></td>
+            <td class="metric-cell">${v.publishedAt.split('T')[0]}</td>
+            <td class="metric-cell">${formatNumber(v.views)}</td>
+            <td class="metric-cell">${formatNumber(v.subs)}</td>
+            <td class="metric-cell">-</td>
+            <td class="metric-cell">-</td>
         `;
         tableBody.appendChild(tr);
     });
 
+<<<<<<< HEAD
     // Add listeners to checkboxes
     document.querySelectorAll('.video-select').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
@@ -540,13 +362,26 @@ const updateUI = () => {
             
             syncSelectedIds();
             renderBasket();
+=======
+    document.querySelectorAll('.video-select').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            const id = cb.dataset.id;
+            if (e.target.checked) {
+                selectedVideoIds.add(id);
+                selectedVideosMap.set(id, currentData.find(x => x.id === id));
+            } else {
+                selectedVideoIds.delete(id);
+                selectedVideosMap.delete(id);
+            }
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
             updateFabVisibility();
-            updateSelectAllState();
+            updateBasketView();
         });
     });
 };
 
 const updateFabVisibility = () => {
+<<<<<<< HEAD
     if (selectedVideosMap.size > 0) {
         fabContainer.style.display = 'block';
         selectedCount.textContent = selectedVideosMap.size;
@@ -587,9 +422,36 @@ if (selectAllCheckbox) {
         syncSelectedIds();
         renderBasket();
         updateFabVisibility();
-    });
-}
+=======
+    if (fabContainer) fabContainer.style.display = selectedVideoIds.size > 0 ? 'block' : 'none';
+    if (selectedCount) selectedCount.textContent = selectedVideoIds.size;
+};
 
+const updateBasketView = () => {
+    if (!basketList) return;
+    basketList.innerHTML = '';
+    if (basketCount) basketCount.textContent = selectedVideosMap.size;
+    selectedVideosMap.forEach((v, id) => {
+        const li = document.createElement('li');
+        li.className = 'basket-item';
+        li.innerHTML = `<span>${v.title}</span><button class="basket-item-remove" data-id="${id}">&times;</button>`;
+        basketList.appendChild(li);
+    });
+    
+    basketList.querySelectorAll('.basket-item-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = btn.dataset.id;
+            selectedVideoIds.delete(id);
+            selectedVideosMap.delete(id);
+            updateUI();
+            updateFabVisibility();
+            updateBasketView();
+        });
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
+    });
+};
+
+<<<<<<< HEAD
 // Open Generator View
 if (extractScriptBtn) {
     extractScriptBtn.addEventListener('click', () => {
@@ -720,22 +582,65 @@ async function callGemini(apiKey, promptText) {
                 
                 const data = await res.json();
                 if (!data.candidates || data.candidates.length === 0) throw new Error("No candidates returned from Gemini");
+=======
+async function callGemini(apiKey, prompt) {
+    console.log("🚀 app.js V3.9 (Resilient Fallback) - 호출 시작");
+    
+    const actualKey = apiKey.split(',')[0].replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+    if (!actualKey) throw new Error("API 키가 유효하지 않습니다.");
+    
+    const models = [
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash-exp"
+    ];
+    
+    let lastErr = "";
+    
+    for (const modelName of models) {
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${actualKey}`;
+            console.log(`📡 시도 중: ${modelName}...`);
+            
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.7 }
+                })
+            });
+            
+            const data = await res.json();
+            
+            if (res.ok && data.candidates && data.candidates[0].content) {
+                console.log(`✅ [${modelName}] 호출 성공!`);
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
                 return data.candidates[0].content.parts[0].text;
-
-            } catch (e) {
-                // Return to outer loop if it's not a generic node/fetch error
-                if (!e.message.includes("fetch")) {
-                    throw e;
-                }
-                lastErrorMsg = e.message;
-                continue;
             }
+            
+            lastErr = data.error ? `${data.error.status}: ${data.error.message}` : `HTTP ${res.status}`;
+            console.warn(`⚠️ ${modelName} 건너뜀 (이유: ${lastErr})`);
+            
+            // 인증 오류(403)나 키 오류(400) 중 특정 케이스만 즉시 중단, 나머지는 다음 모델 시도
+            if (res.status === 403 && lastErr.includes("API_KEY_INVALID")) {
+                throw new Error("API 키가 유효하지 않습니다. 확인 후 다시 시도해주세요.");
+            }
+            
+            // 과부하(UNAVAILABLE), 모델 없음(NOT_FOUND) 등은 다음 모델로 계속 진행
+            continue;
+            
+        } catch (e) {
+            lastErr = e.message;
+            if (e.message.includes("API 키가 유효하지 않습니다")) throw e;
+            console.error(`🚨 ${modelName} 에러 발생, 다음 모델 시도...`, e);
         }
     }
     
-    throw new Error(`All available AI models are currently busy or unavailable. Last message: ${lastErrorMsg}\\n\\nTip: Wait a few minutes before trying again.`);
+    throw new Error(`모든 모델 시도 실패. (마지막 에러: ${lastErr})\n\n팁: API 키 상태를 확인하시거나 잠시 후 다시 시도해 주세요.`);
 }
 
+<<<<<<< HEAD
 // --- PAUSE MANAGER ---
 const pauseManager = {
     isPaused: false,
@@ -953,453 +858,457 @@ Instructions:
                 pauseResumeBtn.style.display = 'none';
             }
         }
+=======
+// Topic Recommendation
+if (recommendTopicBtn) {
+    recommendTopicBtn.addEventListener('click', async () => {
+        const key = geminiApiKeyInput.value.trim();
+        if (!key || selectedVideosMap.size === 0) return;
+        recommendTopicBtn.disabled = true;
+        topicRecommendationResult.textContent = "Analyzing topics...";
+        try {
+            const titles = Array.from(selectedVideosMap.values()).map(v => v.title).join('\n');
+            const ideas = await callGemini(key, `Recommend 5 viral topics in Korean based on these titles:\n${titles}`);
+            topicRecommendationResult.innerHTML = `<strong>Recommendations:</strong><br>${ideas.replace(/\n/g, '<br>')}`;
+        } catch (e) { topicRecommendationResult.textContent = e.message; }
+        recommendTopicBtn.disabled = false;
+>>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
     });
 }
 
-// --- TTS AUDIO GENERATION LOGIC ---
+// ----------------------------------------------------
+// MAIN GENERATION FLOW (CHUNKED)
+// ----------------------------------------------------
+if (startGenerationBtn) {
+    startGenerationBtn.addEventListener('click', async () => {
+        const geminiKey = geminiApiKeyInput.value.trim();
+        if (!geminiKey) return;
+        startGenerationBtn.disabled = true;
+        generationLog.innerHTML = "=== Processing Multi-step Generation ===\n";
+        const log = (msg) => { generationLog.innerHTML += msg + "\n"; generationLog.scrollTop = generationLog.scrollHeight; };
+
+        try {
+            let sentences = [];
+
+            // [V6.0 스마트 체크] 이미 업로드하거나 준비된 대본이 있다면 새로 생성하지 않고 그대로 사용
+            if (window.whiskReadyScriptText) {
+                log("📝 이미 준비된 대본이 감지되었습니다. 기존 장면(99+ 등)을 그대로 사용하여 매칭을 시작합니다.");
+                sentences = window.whiskReadyScriptText.split(/\r?\n/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+                    .map(s => s.replace(/^\d+\.\s+/, ''));
+            } else {
+                log("⏳ 1단계: 트랜스크립트 분석 및 결합 중...");
+                let combinedTranscripts = "";
+                for (const id of selectedVideoIds) {
+                    const res = await fetch(`http://127.0.0.1:5001/api/transcript?videoId=${id}`);
+                    const data = await res.json();
+                    combinedTranscripts += `\nVideo ID ${id}:\n${data.transcript || ""}\n`;
+                }
+
+                log("⏳ 2단계: AI 대본 새로 생성 중...");
+                const template = promptTemplateInput.value || "Viral documentary style";
+                const lengthOpt = document.getElementById('lengthOptionSelect').value;
+                
+                const scriptPrompt = `
+                [TASK: Generate a professional YouTube script based on these transcripts]
+                - Length: ${lengthOpt}
+                - Structure: ${template}
+                - Format: Write exactly ONE SENTENCE PER LINE. 
+                - Target: Provide a rich, detailed script with many scenes.
+                
+                TRANSCRIPTS:
+                ${combinedTranscripts.slice(0, 35000)}
+                `;
+                
+                const generatedScript = await callGemini(geminiKey, scriptPrompt);
+                log("✅ 대본 생성 완료!");
+
+                sentences = generatedScript.split(/\r?\n/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+                    .map(s => s.replace(/^\d+\.\s+/, ''));
+                
+                window.whiskReadyScriptText = sentences.join('\n');
+            }
+
+            // 장면 수 뱃지 업데이트
+            const badge = document.getElementById('sceneCountBadge');
+            if (badge) {
+                badge.textContent = `${sentences.length} Scenes`;
+                badge.style.display = 'inline-block';
+            }
+            log(`📦 총 ${sentences.length}개의 장면이 확정되었습니다. 프롬프트 매칭을 시작합니다.`);
+
+            // 3. 영문 이미지 프롬프트 자동 매칭 생성 (통합 로직 호출)
+            startIntegratedPromptGeneration(sentences);
+
+        } catch (e) { 
+            log(`🚨 에러 발생: ${e.message}`);
+            const resultArea = document.getElementById('manualPromptLog');
+            resultArea.innerHTML = `<div style="padding: 2rem; color: #ef4444; text-align: center;">🚨 오류 발생: ${e.message}</div>`;
+        }
+        startGenerationBtn.disabled = false;
+    });
+}
+
+
+// ----------------------------------------------------
+// TTS AUDIO LOGIC
+// ----------------------------------------------------
 const generateAudioBtn = document.getElementById('generateAudioBtn');
 const audioLog = document.getElementById('audioLog');
 const audioResultContainer = document.getElementById('audioResultContainer');
 
-function alog(msg) {
-    audioLog.innerHTML += msg;
-    audioLog.scrollTop = audioLog.scrollHeight;
-}
-
-function splitTextIntoChunks(text, maxLen = 800) {
-    // split by punctuation to keep sentences intact
-    const sentences = text.split(/([.?!]+[\\n\\s]*)/);
-    const chunks = [];
-    let currentChunk = "";
-    
-    for (let i = 0; i < sentences.length; i += 2) {
-        const sentence = sentences[i];
-        const delim = sentences[i+1] || "";
-        const completeSentence = sentence + delim;
-        
-        if (!completeSentence.trim()) continue;
-
-        if (currentChunk.length + completeSentence.length > maxLen) {
-            if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
-            currentChunk = completeSentence;
-        } else {
-            currentChunk += completeSentence;
-        }
-    }
-    if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
-    return chunks;
-}
-
-// Convert Array of Raw PCM (Base64 Strings or Uint8Arrays) to a single WAV Blob
 function convertPcmArrayToWavBlob(pcmDataArray, sampleRate = 24000) {
     let totalLength = 0;
     const buffers = pcmDataArray.map(data => {
         if (typeof data === 'string') {
-            let stB64 = data.replace(/-/g, '+').replace(/_/g, '/');
-            const pad = stB64.length % 4;
-            if (pad) {
-                stB64 += '='.repeat(4 - pad);
-            }
-            const binaryString = window.atob(stB64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            totalLength += len;
+            const binaryString = window.atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            totalLength += bytes.length;
             return bytes;
         } else {
-            // It's already a Uint8Array from OpenAI
             totalLength += data.length;
             return data;
         }
     });
-
     const combinedBytes = new Uint8Array(totalLength);
     let offset = 0;
-    for (const buf of buffers) {
-        combinedBytes.set(buf, offset);
-        offset += buf.length;
-    }
-
-    const pcmDataLength = totalLength;
+    for (const buf of buffers) { combinedBytes.set(buf, offset); offset += buf.length; }
     const headerBuffer = new ArrayBuffer(44);
     const view = new DataView(headerBuffer);
-
-    const writeString = (view, offset, str) => {
-        for (let i = 0; i < str.length; i++) {
-            view.setUint8(offset + i, str.charCodeAt(i));
-        }
-    };
-
+    const writeString = (v, o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
     writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + pcmDataLength, true);
+    view.setUint32(4, 36 + totalLength, true);
     writeString(view, 8, 'WAVE');
     writeString(view, 12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM Format (1)
-    view.setUint16(22, 1, true); // 1 channel (Mono)
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true); // Byte rate (SampleRate * 1 channel * 2 bytes)
-    view.setUint16(32, 2, true); // Block align (1 channel * 2 bytes)
-    view.setUint16(34, 16, true); // Bits per sample (16)
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
     writeString(view, 36, 'data');
-    view.setUint32(40, pcmDataLength, true);
-
+    view.setUint32(40, totalLength, true);
     return new Blob([view, combinedBytes], { type: 'audio/wav' });
 }
 
-async function callGeminiAudio(apiKey, chunkText) {
-    const model = "gemini-2.5-flash-preview-tts"; 
-    const retries = 3;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    
-    // User styling param
-    const promptText = `[Voice Rules: Professional anchor, Warm and analytical tone, Constant speed, Medium pitch. Maintain the EXACT same consistent voice character from start to finish without mood swings.] Read the following text:\n\n${chunkText}`;
-    
-    for(let r = 0; r < retries; r++) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+generateAudioBtn.addEventListener('click', async () => {
+    const script = window.whiskReadyScriptText;
+    const key = geminiApiKeyInput.value.trim();
+    if (!script || !key) return;
+    generateAudioBtn.disabled = true;
+    audioLog.textContent = "Generating Audio...";
+    try {
+        const chunks = script.match(/[^\.!\?]+[\.!\?]+/g) || [script];
+        let pcmData = [];
+        for (const chunk of chunks) {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: { voiceName: "enceladus" }
-                            }
-                        }
-                    }
+                    contents: [{ parts: [{ text: chunk }] }],
+                    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "enceladus" } } } }
                 })
             });
-
-            if (!res.ok) {
-                 const err = await res.json();
-                 const baseMsg = err.error?.message || "Audio API Error";
-                 if (res.status === 429) {
-                     alog(`\n⏳ 과부하 감지. 20초 후 자동 재시도...`);
-                     await sleep(20000); 
-                     continue;
-                 }
-                 throw new Error(baseMsg);
-            }
-            
             const data = await res.json();
-            const part = data.candidates?.[0]?.content?.parts?.[0];
-            if (part && part.inlineData && part.inlineData.mimeType.includes("audio")) {
-                return part.inlineData.data; // RAW PCM Base64
-            }
-            throw new Error("No audio returned. Verify model capabilities.");
-            
-        } catch(e) {
-             if (e.message.includes("fetch")) {
-                 if (r === retries - 1) throw e;
-                 await sleep(5000);
-                 continue;
-             }
-             if (r === retries - 1) throw e;
+            pcmData.push(data.candidates[0].content.parts[0].inlineData.data);
+            await new Promise(r => setTimeout(r, 1000)); // Minimal throttle
         }
-    }
-    throw new Error("API calls completely failed because all retries were exhausted.");
-}
-
-async function callOpenAIAudio(apiKey, chunkText) {
-    const res = await fetch("https://api.openai.com/v1/audio/speech", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            model: "tts-1",
-            input: chunkText,
-            voice: "onyx",
-            response_format: "pcm",
-            speed: 0.95 // Slightly slower for calmer, clearer anchor tone
-        })
-    });
-
-    if (!res.ok) {
-        let err;
-        try { err = await res.json(); } catch(e){}
-        throw new Error(err?.error?.message || "OpenAI API Error");
-    }
-
-    const arrayBuffer = await res.arrayBuffer();
-    return new Uint8Array(arrayBuffer); // Raw PCM Stream from OpenAI
-}
-
-generateAudioBtn.addEventListener('click', async () => {
-    if (!window.whiskReadyScriptText) return;
-    
-    generateAudioBtn.disabled = true;
-    generateAudioBtn.textContent = "Generating... Please wait";
-    audioLog.innerHTML = "";
-    audioResultContainer.innerHTML = "";
-    
-    const _apiKey = document.getElementById('geminiApiKeyInput').value.trim();
-    const openAiApiKeyInput = document.getElementById('openAiApiKeyInput');
-    const openAiApiKey = openAiApiKeyInput?.value.trim();
-    const engine = document.getElementById('ttsEngineSelect')?.value || 'gemini';
-
-    // Persist OpenAI key
-    if (openAiApiKey) localStorage.setItem('openAiApiKey', openAiApiKey);
-    
-    // Set chunk size. Gemini fails with 429 often on large chunks (internal limits). OpenAI handles 1500 fine.
-    const chunkSize = engine === 'openai' ? 1500 : 800;
-    const chunks = splitTextIntoChunks(window.whiskReadyScriptText, chunkSize);
-    alog(`✅ 전체 대본을 ${chunks.length}개의 조각(Chunk)으로 분할했습니다 (엔진: ${engine}, 최대 ${chunkSize}자).\n`);
-    
-    const base64AudioArray = [];
-    
-    if (engine === 'gemini' && !_apiKey) {
-        alog(`\n🚨 ERROR: Gemini API Key가 누락되었습니다.`);
-        generateAudioBtn.disabled = false;
-        generateAudioBtn.textContent = "Generate Full Audio";
-        return;
-    }
-    
-    if (engine === 'openai' && !openAiApiKey) {
-        alog(`\n🚨 ERROR: OpenAI API Key가 누락되었습니다.`);
-        generateAudioBtn.disabled = false;
-        generateAudioBtn.textContent = "Generate Full Audio";
-        return;
-    }
-    
-    try {
-        for(let i=0; i<chunks.length; i++) {
-           alog(`▶ Generating Audio Part ${i+1}/${chunks.length} [${engine.toUpperCase()}]...\n`);
-           
-           let audioData;
-           if (engine === 'openai') {
-               audioData = await callOpenAIAudio(openAiApiKey, chunks[i]);
-           } else {
-               audioData = await callGeminiAudio(_apiKey, chunks[i]);
-           }
-           base64AudioArray.push(audioData);
-           alog(`✅ Part ${i+1} 오디오 생성 완료.\n`);
-           
-           if (i < chunks.length - 1) {
-               if (engine === 'gemini') {
-                   alog(`⏳ 구글 서버 과열 방지를 위해 15초간 대기합니다...\n`);
-                   await new Promise(r => setTimeout(r, 15000));
-               } else {
-                   // OpenAI allows rapid requests, brief pause
-                   await new Promise(r => setTimeout(r, 1000));
-               }
-           }
-        }
-        
-        alog(`\n🚀 ${chunks.length}개의 조각난 오디오 파일을 1개의 무손실 WAV 파일로 병합합니다...`);
-        // 24kHz is what both models emit for PCM in our usage (openAI can emit 24k default for PCM)
-        const finalWavBlob = convertPcmArrayToWavBlob(base64AudioArray, 24000);
-        const finalWavUrl = URL.createObjectURL(finalWavBlob);
-        
-        audioResultContainer.innerHTML = `
-            <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
-                <audio controls src="${finalWavUrl}" style="width: 100%; margin-bottom: 10px;"></audio>
-                <a href="${finalWavUrl}" download="YT_Script_Voice_${engine}.wav" style="display: block; background: var(--success, #27ae60); color: white; text-align: center; padding: 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 600; box-shadow: 0 2px 10px rgba(39,174,96,0.3);">⬇️ 전체 오디오 파일 다운로드 (.wav)</a>
-            </div>
-        `;
-        alog(`\n✅ 오디오 생성 및 병합 완벽히 성공! 결과물을 다운로드하거나 재생하세요.`);
-        
-        // Expose to video creator
-        window.finalWavBlob = finalWavBlob;
+        const wav = convertPcmArrayToWavBlob(pcmData, 24000);
+        window.finalWavBlob = wav;
+        const url = URL.createObjectURL(wav);
+        audioResultContainer.innerHTML = `<audio controls src="${url}"></audio><br><a href="${url}" download="Audio.wav" class="btn-download" style="background:#27ae60; color:white; padding:10px; border-radius:5px; text-decoration:none; display:inline-block; margin-top:10px;">⬇️ Download Audio</a>`;
         document.getElementById('videoPanel').style.display = 'block';
-        document.getElementById('videoLog').style.display = 'block';
-        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 AutoWhisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
-        
-    } catch(e) {
-        alog(`\n🚨 ERROR: ${e.message}`);
-    }
+    } catch (e) { audioLog.textContent = e.message; }
     generateAudioBtn.disabled = false;
-    generateAudioBtn.textContent = "Generate Full Audio";
 });
 
-// --- AUDIO UPLOAD LOGIC ---
-const audioUploadInput = document.getElementById('audioUploadInput');
-if (audioUploadInput) {
-    audioUploadInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        window.finalWavBlob = file;
-        const audioUrl = URL.createObjectURL(file);
-        
-        audioResultContainer.innerHTML = `
-            <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
-                <audio controls src="${audioUrl}" style="width: 100%; margin-bottom: 10px;"></audio>
-                <div style="text-align: center; color: var(--success); font-weight: 600;">✅ 업로드된 오디오 파일이 준비되었습니다.</div>
-            </div>
-        `;
-        
-        alog(`\n✅ 사용자가 직접 오디오 파일(${file.name})을 업로드했습니다.`);
-        
-        document.getElementById('videoPanel').style.display = 'block';
-        document.getElementById('videoLog').style.display = 'block';
-        document.getElementById('videoLog').innerText = '✅ 오디오가 준비되었습니다! 이제 AutoWhisk 이미지들을 여러 장 선택하고 유튜브 영상 제작을 시작하세요.';
-        
-        // Reset input so user can re-upload if needed
-        audioUploadInput.value = '';
-    });
-}
-
-// --- VIDEO COMPOSITOR LOGIC ---
+// --- VIDEO COMPOSITOR ---
 const generateVideoBtn = document.getElementById('generateVideoBtn');
-const whiskImagesInput = document.getElementById('whiskImagesInput');
+const manualVideosInput = document.getElementById('manualVideosInput');
 const videoLog = document.getElementById('videoLog');
 
-function vlog(msg) {
-    videoLog.innerHTML += msg;
-    videoLog.scrollTop = videoLog.scrollHeight;
-}
-
 generateVideoBtn.addEventListener('click', async () => {
-    if (!window.whiskReadyScriptText || !window.finalWavBlob) {
-        alert("먼저 대본(Script)과 오디오 트랙(Audio)을 모두 생성해야 합니다!");
-        return;
-    }
-    if (whiskImagesInput.files.length === 0) {
-        alert("오토 위스크(Auto Whisk)에서 생성한 이미지 파일들을 모두 드래그해서 선택해주세요!");
-        return;
-    }
-
+    if (!window.whiskReadyScriptText || !window.finalWavBlob || manualVideosInput.files.length === 0) return;
     generateVideoBtn.disabled = true;
-    generateVideoBtn.textContent = "⏳ 비디오 병합 중... (잠시만 기다려주세요)";
-    videoLog.innerHTML = "";
-    vlog(`🚀 영상을 병합하기 위해 로컬 파이썬 렌더링 서버(http://localhost:5000)와 통신합니다...\n`);
-
+    videoLog.textContent = "Uploading to server for rendering...";
     const formData = new FormData();
     formData.append("script", window.whiskReadyScriptText);
     formData.append("audio", window.finalWavBlob, "audio.wav");
-    
-    for (let i = 0; i < whiskImagesInput.files.length; i++) {
-        formData.append("images", whiskImagesInput.files[i]);
-    }
+    if (window.generatedSceneData) formData.append("prompts", JSON.stringify(window.generatedSceneData));
+    for (let i = 0; i < manualVideosInput.files.length; i++) formData.append("videos", manualVideosInput.files[i]);
 
     try {
-        const pContainer = document.getElementById('videoProgressContainer');
-        const pBar = document.getElementById('videoProgressBar');
-        const pPercent = document.getElementById('videoProgressPercent');
-        
-        if (pContainer) pContainer.style.display = 'block';
-        if (pBar) pBar.style.width = '0%';
-        if (pPercent) pPercent.innerText = '0%';
-        
-        vlog(`⏳ FFmpeg 줌팬 필터 렌더링 서버를 시작합니다...\n(영상 길이에 따라 대략 몇 분 정도 소요됩니다)\n`);
-        
-        const res = await fetch("http://127.0.0.1:5000/api/make-video", {
-            method: "POST",
-            body: formData
-        });
-
-        if (!res.ok) {
-            let errMsg = "서버 에러 발생!";
-            try {
-                const errObj = await res.json();
-                errMsg = errObj.error || errMsg;
-            } catch(e) {}
-            throw new Error(errMsg);
-        }
-        
+        const res = await fetch("http://127.0.0.1:5001/api/make-video", { method: "POST", body: formData });
         const { job_id } = await res.json();
-        const eventSource = new EventSource(`http://127.0.0.1:5000/api/progress/${job_id}`);
-        
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            if (data.error) {
-                eventSource.close();
-                vlog(`\n🚨 SSE ERROR: ${data.error}`);
-                generateVideoBtn.disabled = false;
-                generateVideoBtn.textContent = "Upload & Create Video";
-                return;
-            }
-                        if (pBar) pBar.style.width = `${data.progress}%`;
-            if (pPercent) pPercent.innerText = `${data.progress}%`;
-            
-            const pText = document.getElementById('videoProgressText');
-            if (pText && data.message) pText.innerText = data.message;            
-            if (data.status === 'completed') {
-                eventSource.close();
-                vlog(`\n🎉 100% 비디오 렌더링이 성공적으로 완료되었습니다! 파일 다운로드를 시작합니다.`);
-                
-                // Trigger download
+        videoLog.textContent = "Rendering started. Checking progress...";
+        const ev = new EventSource(`http://127.0.0.1:5001/api/progress/${job_id}`);
+        ev.onmessage = (e) => {
+            const d = JSON.parse(e.data);
+            videoLog.textContent = `Progress: ${d.progress}% - ${d.message}`;
+            if (d.status === 'completed') {
+                ev.close();
                 const a = document.createElement('a');
-                a.href = `http://127.0.0.1:5000/api/download/${job_id}`;
-                a.download = "Final_YouTube_Video.mp4";
-                document.body.appendChild(a);
+                a.href = `http://127.0.0.1:5001/api/download/${job_id}`;
+                a.download = "Video.mp4";
                 a.click();
-                document.body.removeChild(a);
-                
-                vlog(`\n✅ "Final_YouTube_Video.mp4" 파일 다운로드가 시작되었습니다!`);
+                videoLog.textContent = "✅ Done!";
                 generateVideoBtn.disabled = false;
-                generateVideoBtn.textContent = "Upload & Create Video";
-            }
-            else if (data.status === 'error') {
-                eventSource.close();
-                vlog(`\n🚨 SERVER ERROR: 렌더링 중 오류가 발생했습니다. (서버 로그 확인 필요)`);
-                if (pContainer) pContainer.children[0].children[0].innerText = 'Error occurred';
-                generateVideoBtn.disabled = false;
-                generateVideoBtn.textContent = "Upload & Create Video";
             }
         };
-
-        eventSource.onerror = function(err) {
-            console.error("SSE Error:", err);
-            eventSource.close();
-            vlog(`\n🚨 NETWORK ERROR: 진행률 서버와의 연결이 끊어졌습니다.`);
-            generateVideoBtn.disabled = false;
-            generateVideoBtn.textContent = "Upload & Create Video";
-        };
-        
-        // We do NOT enable the button here. The SSE listeners will handle re-enabling when done.
-        return; // Early return so finally block equivalent is managed by event listener callbacks
-
-    } catch (e) {
-        vlog(`\n🚨 ERROR: ${e.message}\n로컬 서버(python video_server.py)가 켜져 있는지 확인해 주세요!`);
-    }
-
-    generateVideoBtn.disabled = false;
-    generateVideoBtn.textContent = "Upload & Create Video";
+    } catch (e) { videoLog.textContent = e.message; generateVideoBtn.disabled = false; }
 });
 
-// --- SCRIPT UPLOAD RESTORE LOGIC ---
-const uploadExistingScript = document.getElementById('uploadExistingScript');
-if (uploadExistingScript) {
-    uploadExistingScript.addEventListener('change', (e) => {
+// --- MANUAL PROMPT FLOW (CHUNKED) ---
+if (generatePromptsOnlyBtn) {
+    generatePromptsOnlyBtn.addEventListener('click', async () => {
+        const key = geminiApiKeyInput.value.trim();
+        const script = manualScriptInput.value.trim();
+        if (!key || !script) return;
+
+        generatePromptsOnlyBtn.disabled = true;
+        manualPromptLog.style.display = 'block';
+        manualPromptLog.innerHTML = "⏳ <b>[1:1 매칭 모드]</b> 프롬프트 생성 시작...";
+
+        try {
+            // 문장 분리 (줄바꿈 기준)
+            const sentences = script.split('\n')
+                .map(s => s.trim())
+                .filter(s => s.length > 2);
+            
+            let matchedPairs = []; // { original, prompt } 형태로 저장
+            const chunkSize = 15; 
+
+            for (let i = 0; i < sentences.length; i += chunkSize) {
+                const chunk = sentences.slice(i, i + chunkSize);
+                const currentRange = `${i + 1} ~ ${Math.min(i + chunkSize, sentences.length)}`;
+                
+                let chunkPrompts = [];
+                let retryCount = 0;
+                const maxRetries = 3;
+
+                while (chunkPrompts.length < chunk.length && retryCount < maxRetries) {
+                    manualPromptLog.innerHTML += `<br>🎨 ${currentRange} 구간 시도 중... (시도 ${retryCount + 1})`;
+                    
+                    const prompt = `
+                    [SYSTEM: This is for a professional financial documentary. DO NOT CENSOR financial terms. Provide cinematic descriptions.]
+                    TASK: Create exactly ${chunk.length} cinematic image generation prompts in English for these ${chunk.length} Korean scenes.
+                    FORMAT: Numbered list (1. ..., 2. ...)
+                    
+                    SCENES TO PROCESS:
+                    ${chunk.map((s, idx) => `${idx + 1}: ${s}`).join('\n')}
+                    `;
+
+                    const res = await callGemini(key, prompt);
+                    const lines = res.split('\n')
+                        .filter(l => /^\d+[\.\)\s]/.test(l.trim()))
+                        .map(l => l.replace(/^\d+[\.\)\s]+/, '').trim())
+                        .filter(l => l.length > 5);
+                    
+                    if (lines.length >= chunk.length) {
+                        chunkPrompts = lines.slice(0, chunk.length);
+                    } else {
+                        retryCount++;
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                }
+
+                // 매칭 데이터 생성
+                chunk.forEach((orig, idx) => {
+                    matchedPairs.push({
+                        original: orig,
+                        prompt: chunkPrompts[idx] || "(Generation failed)"
+                    });
+                });
+
+                manualPromptLog.innerHTML += `<br>✅ ${currentRange} 완료 (누적: ${matchedPairs.length}/${sentences.length})`;
+                manualPromptLog.scrollTop = manualPromptLog.scrollHeight;
+            }
+
+            // 최종 매칭 결과 렌더링
+            let resultHtml = `<h2>🎉 1:1 매칭 생성 완료! (총 ${matchedPairs.length}개)</h2>`;
+            resultHtml += `<div style="background:#0f172a; border-radius:12px; border:1px solid #1e293b; overflow:hidden;">`;
+            resultHtml += `<table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">`;
+            resultHtml += `<thead style="background:#1e293b; color:#94a3b8;"><tr><th style="padding:10px; text-align:left; border-bottom:1px solid #334155; width:40%;">원본 대본 (Korean)</th><th style="padding:10px; text-align:left; border-bottom:1px solid #334155;">생성된 프롬프트 (English)</th></tr></thead><tbody>`;
+            
+            matchedPairs.forEach((pair, idx) => {
+                const bg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.03)';
+                resultHtml += `<tr style="background:${bg}; border-bottom:1px solid #1e293b;">`;
+                resultHtml += `<td style="padding:12px; color:#cbd5e1; border-right:1px solid #1e293b; vertical-align:top;"><b>[${idx+1}]</b> ${pair.original}</td>`;
+                resultHtml += `<td style="padding:12px; color:#3b82f6; vertical-align:top;">${pair.prompt}</td>`;
+                resultHtml += `</tr>`;
+            });
+            
+            resultHtml += `</tbody></table></div>`;
+            manualPromptLog.innerHTML = resultHtml;
+
+            // 다운로드 파일 구성 (원본 대본 포함)
+            const downloadText = matchedPairs.map((p, idx) => `[Scene ${idx+1}]\nScript: ${p.original}\nPrompt: ${p.prompt}\n`).join('\n');
+            const blob = new Blob([downloadText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = "Matched_Script_Prompts.txt"; 
+            a.className = "btn-download";
+            a.textContent = "⬇️ 매칭 결과 파일 다운로드 (.txt)";
+            a.style = "display:block; width:100%; text-align:center; background:#10b981; color:white; padding:15px; border-radius:8px; text-decoration:none; margin-top:20px; font-weight:bold; font-size:1.1em; box-shadow:0 4px 15px rgba(16,185,129,0.3);";
+            
+            manualPromptLog.prepend(a);
+        } catch (e) {
+            manualPromptLog.innerHTML = `<div style="color:red; padding:20px;">🚨 <b>에러 발생:</b> ${e.message}</div>`;
+        }
+        generatePromptsOnlyBtn.disabled = false;
+    });
+}
+
+// ----------------------------------------------------
+// FILE UPLOAD & SCENE COUNTING (V5.3)
+// ----------------------------------------------------
+const uploadScriptInput = document.getElementById('uploadExistingScript');
+const sceneCountBadge = document.getElementById('sceneCountBadge');
+
+if (uploadScriptInput) {
+    uploadScriptInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = (ev) => {
-            const text = ev.target.result;
-            window.whiskReadyScriptText = text;
+        reader.onload = (event) => {
+            const content = event.target.result;
+            const sentences = content.split(/\r?\n/)
+                .map(s => s.trim())
+                .filter(s => s.length > 0)
+                .map(s => s.replace(/^\d+\.\s+/, ''));
             
-            // Show TTS and Video Panels
-            const ttsPanel = document.getElementById('ttsPanel');
-            const videoPanel = document.getElementById('videoPanel');
-            if (ttsPanel) ttsPanel.style.display = 'block';
-            if (videoPanel) videoPanel.style.display = 'block';
+            window.uploadedScriptSentences = sentences;
+            window.whiskReadyScriptText = sentences.join('\n');
+
+            // 장면 수 뱃지 업데이트
+            sceneCountBadge.textContent = `${sentences.length} Scenes`;
+            sceneCountBadge.style.display = 'inline-block';
             
-            // Log output
-            const logEl = document.getElementById('generationLog');
-            if (logEl) {
-                logEl.innerHTML += `\n✅ [RESTORED] Loaded script from ${file.name}!\nLength: ${text.length} chars.\nYou can now generate audio directly.`;
-                logEl.scrollTop = logEl.scrollHeight;
-            }
-            
-            // Show ttsPanel and update audioLog
-            const audioLog = document.getElementById('audioLog');
-            if (ttsPanel) ttsPanel.style.display = 'block';
-            if (audioLog) audioLog.innerText = '✅ Script restored! You can click [Generate Full Audio] to resume processing.';
-            
-            // Reset input so it works again for same file
-            uploadExistingScript.value = '';
+            // 결과창에 안내 메시지 및 생성 시작 버튼 표시
+            const resultArea = document.getElementById('manualPromptLog');
+            resultArea.innerHTML = `
+                <div style="padding: 2.5rem; text-align: center;">
+                    <div style="font-size: 1.2rem; margin-bottom: 1rem; color: #10b981;">✅ 대본 업로드 완료! (총 ${sentences.length}개 장면)</div>
+                    <p style="color: #94a3b8; margin-bottom: 2rem;">이 대본을 바탕으로 영문 이미지 프롬프트를 1:1 매칭하여 생성하시겠습니까?</p>
+                    <button id="startManualMatchBtn" style="background: var(--accent-gradient); color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">프롬프트 1:1 매칭 생성 시작</button>
+                </div>
+            `;
+
+            document.getElementById('startManualMatchBtn').onclick = () => {
+                startIntegratedPromptGeneration(sentences);
+            };
         };
         reader.readAsText(file);
     });
+}
+
+// 통합 프롬프트 생성 함수 (V5.7 동적 청크 축소 및 무결성 보장)
+async function startIntegratedPromptGeneration(sentences) {
+    const geminiKey = geminiApiKeyInput.value.trim();
+    if (!geminiKey) {
+        alert("Gemini API Key가 필요합니다.");
+        return;
+    }
+
+    const resultArea = document.getElementById('manualPromptLog');
+    resultArea.innerHTML = `<div style="padding: 2rem; text-align: center; color: #3b82f6;">⏳ 100% 무결성 모드 가동 중... (0 / ${sentences.length})</div>`;
+    
+    let matchedPairs = [];
+
+    try {
+        for (let i = 0; i < sentences.length; i++) {
+            // 진행 상황 업데이트
+            resultArea.innerHTML = `<div style="padding: 2rem; text-align: center; color: #10b981;">🎨 장면 매칭 중: ${i + 1} / ${sentences.length}</div>`;
+            
+            const sceneText = sentences[i];
+            let generatedPrompt = "";
+            let retryCount = 0;
+            const maxRetries = 3;
+
+            // [V5.7 핵심] 안정성을 위해 1개씩 확실하게 생성 (필요시 뭉쳐서 하도록 변경 가능하나, 99개 누락 방지가 우선)
+            while (!generatedPrompt && retryCount < maxRetries) {
+                try {
+                    const pPrompt = `
+                    [SYSTEM: Cinematic Image Prompt Generator]
+                    TASK: Create ONE detailed image generation prompt in English for this Korean scene.
+                    - Scene: "${sceneText}"
+                    - Requirements: Photorealistic, 8k, cinematic lighting, no text, no humans.
+                    - Format: Return ONLY the English prompt text.
+                    `;
+
+                    const resText = await callGemini(geminiKey, pPrompt);
+                    if (resText && resText.length > 5) {
+                        generatedPrompt = resText.trim().replace(/^["']|["']$/g, ''); // 따옴표 제거
+                    } else {
+                        retryCount++;
+                    }
+                } catch (err) {
+                    retryCount++;
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+
+            matchedPairs.push({
+                original: sceneText,
+                prompt: generatedPrompt || "(Prompt generation failed after 3 retries)"
+            });
+
+            // 매 10개마다 스크롤 하단으로
+            if (i % 10 === 0) resultArea.scrollTop = resultArea.scrollHeight;
+        }
+
+        // 최종 결과 렌더링
+        window.generatedSceneData = matchedPairs.map((p, idx) => ({ index: idx, prompt: p.prompt, koreanText: p.original }));
+        renderFinalMatchTable(matchedPairs);
+
+    } catch (e) {
+        resultArea.innerHTML = `<div style="padding: 2rem; color: #ef4444; text-align: center;">🚨 치명적 오류: ${e.message}</div>`;
+    }
+}
+
+// 결과 테이블 렌더링 전용 함수
+function renderFinalMatchTable(matchedPairs) {
+    const resultArea = document.getElementById('manualPromptLog');
+    let resultHtml = `
+        <div style="padding: 15px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155;">
+            <span style="font-weight: bold; color: #f8fafc;">🎉 최종 매칭 결과 (${matchedPairs.length} Scenes)</span>
+            <button id="downloadMatchedBtn" style="background:#10b981; color:white; border:none; padding:8px 15px; border-radius:6px; cursor:pointer; font-weight:bold;">⬇️ 파일 다운로드</button>
+        </div>
+        <div style="max-height: 500px; overflow-y: auto;">
+            <table style="width:100%; border-collapse: collapse; font-size: 0.85rem; background: #0f172a;">
+                <thead style="background:#0f172a; color:#94a3b8; position: sticky; top: 0; z-index: 10;">
+                    <tr><th style="padding:12px; text-align:left; border-bottom:1px solid #1e293b; width:40%;">대본 (Original)</th><th style="padding:12px; text-align:left; border-bottom:1px solid #1e293b;">이미지 프롬프트 (English)</th></tr>
+                </thead>
+                <tbody>
+    `;
+    
+    matchedPairs.forEach((pair, idx) => {
+        const bg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)';
+        resultHtml += `
+            <tr style="background:${bg}; border-bottom:1px solid #1e293b;">
+                <td style="padding:12px; color:#cbd5e1; border-right:1px solid #1e293b; vertical-align:top;"><b>[${idx+1}]</b> ${pair.original}</td>
+                <td style="padding:12px; color:#3b82f6; vertical-align:top;">${pair.prompt}</td>
+            </tr>`;
+    });
+    
+    resultHtml += `</tbody></table></div>`;
+    resultArea.innerHTML = resultHtml;
+
+    document.getElementById('downloadMatchedBtn').onclick = () => {
+        const text = matchedPairs.map((p, idx) => `[Scene ${idx+1}]\nKO: ${p.original}\nEN: ${p.prompt}\n`).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = "Final_Scene_Match.txt"; a.click();
+    };
+
+    document.getElementById('ttsPanel').style.display = 'block';
 }
 
 init();
