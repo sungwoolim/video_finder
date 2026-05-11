@@ -99,24 +99,6 @@
                 <div class="table-area">
                     <div class="table-container">
                         <div class="table-wrapper">
-<<<<<<< HEAD
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox"></th>
-                                        <th>Video</th>
-                                        <th class="sortable" data-sort="date">Upload Date</th>
-                                        <th class="sortable" data-sort="views">Views</th>
-                                        <th class="sortable" data-sort="subs">Subscribers (Real)</th>
-                                        <th class="sortable" data-sort="impressions">Impressions (Est.)</th>
-                                        <th class="sortable desc" data-sort="ctr">CTR (Est.)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tableBody">
-                                    <!-- Rows will be populated by JS -->
-                                </tbody>
-                            </table>
-=======
                     <table>
                         <thead>
                             <tr>
@@ -133,7 +115,6 @@
                             <!-- Rows will be populated by JS -->
                         </tbody>
                     </table>
->>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
                         </div>
                     </div>
                 </div>
@@ -180,8 +161,6 @@
                     </select>
                 </div>
 
-<<<<<<< HEAD
-=======
                 <div>
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Prompt Style Option</label>
                     <select id="promptStyleSelect" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none;">
@@ -191,7 +170,6 @@
                     </select>
                 </div>
 
->>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
                 <div style="margin-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 1.5rem;">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">영상 주제 (Video Topic)</label>
                     <div style="display: flex; gap: 0.5rem;">
@@ -201,20 +179,9 @@
                     <div id="topicRecommendationResult" style="margin-top: 0.75rem; font-size: 0.9rem; line-height: 1.5; color: var(--success); display: none;"></div>
                 </div>
 
-<<<<<<< HEAD
-                <div style="display: flex; gap: 0.5rem;">
-                    <button id="startGenerationBtn" style="flex: 2; background: var(--success, #27ae60); color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);">
-                        Start Multi-step Generation
-                    </button>
-                    <button id="pauseResumeBtn" style="flex: 1; background: var(--warning, #f59e0b); color: black; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; display: none;">
-                        ⏸ 일시정지
-                    </button>
-                </div>
-=======
                 <button id="startGenerationBtn" style="background: var(--success, #27ae60); color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);">
                     Start Multi-step Generation
                 </button>
->>>>>>> 2f5eb60 (V6.1: Unified Integrity Mode, Port Fix(5001), and Dynamic Scene Counting)
 
                 <div style="margin-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 1.5rem;">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">또는 기존 대본 텍스트(.txt) 파일 업로드</label>
@@ -228,6 +195,7 @@
                     <h3 style="color: var(--text-secondary); margin: 0;">📋 최종 제작 결과 (Scene Matcher)</h3>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span id="sceneCountBadge" style="background: var(--accent-color); color: white; padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: bold; display: none;">0 Scenes</span>
+                        <button id="downloadPromptsBtn" style="background: #27ae60; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; display: none; transition: 0.2s;">💾 프롬프트 다운로드</button>
                         <label for="uploadExistingScript" style="background: rgba(255,255,255,0.1); color: var(--text-primary); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; border: 1px solid var(--glass-border); transition: 0.2s;">📁 대본 업로드</label>
                         <input type="file" id="uploadExistingScript" accept=".txt" style="display: none;">
                     </div>
@@ -246,7 +214,8 @@
 
                 <!-- TTS Audio Generation Panel -->
 
-                <div id="ttsPanel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                <!-- TTS Audio Generation Panel -->
+                <div id="ttsPanel" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
                     <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
                         🎧 Automated TTS Generator
                         <button id="generateAudioBtn" style="background: #8b5cf6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);">Generate Full Audio</button>
@@ -276,7 +245,8 @@
                 </div>
                 
                 <!-- Video Compositor Panel -->
-                <div id="videoPanel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                <!-- Video Compositor Panel -->
+                <div id="videoPanel" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
                     <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
                         🎬 Hybrid Media Compositor
                         <button id="generateVideoBtn" style="background: #eab308; color: black; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(234, 179, 8, 0.3);">Merge & Render Final Video</button>
@@ -315,6 +285,6 @@
         </button>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=7.2"></script>
 </body>
 </html>
