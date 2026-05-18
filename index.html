@@ -71,7 +71,8 @@
                     <div class="filter-options" id="lengthFilters">
                         <div class="chip active" data-value="all">All</div>
                         <div class="chip" data-value="shorts">Under 1 min (Shorts)</div>
-                        <div class="chip" data-value="medium">1 - 20 mins</div>
+                        <div class="chip" data-value="medium1">1 - 5 mins</div>
+                        <div class="chip" data-value="medium2">5 - 20 mins</div>
                         <div class="chip" data-value="long">20+ mins</div>
                     </div>
                 </div>
@@ -140,7 +141,7 @@
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
-            <!-- Settings Panel -->
+            <!-- Left Panel: Settings & Progress -->
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                 <div>
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Gemini API Key</label>
@@ -149,7 +150,7 @@
                 
                 <div>
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Script Structure (Prompt)</label>
-                    <textarea id="promptTemplateInput" style="width: 100%; height: 120px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none; resize: vertical; font-family: inherit;">훅(질문 포함) &gt; 인트로 &gt; 설명 &gt; 결론</textarea>
+                    <textarea id="promptTemplateInput" style="width: 100%; height: 120px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none; resize: vertical; font-family: inherit;">훅(질문 포함) > 인트로 > 설명 > 결론</textarea>
                 </div>
                 
                 <div>
@@ -171,53 +172,77 @@
                 </div>
 
                 <div style="margin-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">Tavily API Key (외부 뉴스 검색용)</label>
+                    <input type="password" id="tavilyApiKeyInput" placeholder="Enter Tavily API Key..." style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none; margin-bottom: 1rem;">
+
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">영상 주제 (Video Topic)</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" id="videoTopicInput" placeholder="추천을 받거나 여기에 직접 영상 주제를 입력해 주세요..." style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none;">
                         <button id="recommendTopicBtn" style="background: var(--accent-color); color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);">주제 추천받기</button>
                     </div>
                     <div id="topicRecommendationResult" style="margin-top: 0.75rem; font-size: 0.9rem; line-height: 1.5; color: var(--success); display: none;"></div>
+
+                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="externalDataPeriodSelect" style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px; outline: none;">
+                            <option value="7">최근 일주일</option>
+                            <option value="30">최근 한 달</option>
+                            <option value="365">최근 1년</option>
+                        </select>
+                        <button id="fetchExternalDataBtn" style="background: #f59e0b; color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);">외부 데이터 참조하기</button>
+                    </div>
+                    <div id="externalDataResult" style="margin-top: 0.75rem; font-size: 0.85rem; line-height: 1.5; color: #fbbf24; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.3); display: none; max-height: 150px; overflow-y: auto; white-space: pre-wrap;"></div>
                 </div>
 
                 <button id="startGenerationBtn" style="background: var(--success, #27ae60); color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);">
-                    Start Multi-step Generation
+                    1. Start Multi-step Generation
                 </button>
 
                 <div style="margin-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 1.5rem;">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">또는 기존 대본 텍스트(.txt) 파일 업로드</label>
                     <input type="file" id="uploadExistingScript" accept=".txt" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px;">
                 </div>
+
+                <!-- Generation Progress (Moved to Left Panel) -->
+                <div style="margin-top: 1rem; flex: 1; display: flex; flex-direction: column;">
+                    <h3 style="margin-top: 0; color: var(--text-secondary);">Generation Progress</h3>
+                    <div id="generationLog" style="flex: 1; min-height: 250px; font-family: monospace; font-size: 0.9rem; overflow-y: auto; white-space: pre-wrap; color: #e2e8f0; background: #0f172a; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;">Waiting to start...</div>
+                </div>
             </div>
 
-            <!-- Final Result Viewer Area -->
-            <div id="finalResultArea" style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid var(--glass-border);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="color: var(--text-secondary); margin: 0;">📋 최종 제작 결과 (Scene Matcher)</h3>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span id="sceneCountBadge" style="background: var(--accent-color); color: white; padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: bold; display: none;">0 Scenes</span>
-                        <button id="downloadPromptsBtn" style="background: #27ae60; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; display: none; transition: 0.2s;">💾 프롬프트 다운로드</button>
-                        <label for="uploadExistingScript" style="background: rgba(255,255,255,0.1); color: var(--text-primary); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; border: 1px solid var(--glass-border); transition: 0.2s;">📁 대본 업로드</label>
-                        <input type="file" id="uploadExistingScript" accept=".txt" style="display: none;">
+            <!-- Right Panel: Results & Next Steps -->
+            <div style="display: flex; flex-direction: column; gap: 2rem;">
+                
+                <!-- 2. Script Review Panel -->
+                <div id="scriptReviewPanel" style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="color: var(--text-secondary); margin: 0;">2. 생성된 대본 검토 및 수정</h3>
+                        <button id="downloadScriptBtn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">💾 대본 텍스트로 저장</button>
+                    </div>
+                    <textarea id="generatedScriptTextarea" style="width: 100%; height: 300px; background: #0f172a; border: 1px solid #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; font-family: inherit; font-size: 0.95rem; resize: vertical; line-height: 1.6;"></textarea>
+                    <button id="confirmScriptBtn" style="margin-top: 1rem; width: 100%; background: #3b82f6; color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: 600; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                        ▶️ 대본 확정 & 이미지 프롬프트 생성 시작
+                    </button>
+                </div>
+                
+                <!-- 3. Final Result Viewer Area -->
+                <div id="finalResultArea" style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="color: var(--text-secondary); margin: 0;">3. 최종 매칭 결과 (Scene Matcher)</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="sceneCountBadge" style="background: var(--accent-color); color: white; padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: bold; display: none;">0 Scenes</span>
+                            <button id="downloadPromptsBtn" style="background: #27ae60; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; display: none; transition: 0.2s;">💾 프롬프트 다운로드</button>
+                        </div>
+                    </div>
+                    <p id="resultStatusText" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">왼쪽에서 생성 버튼을 누르면 1:1 매칭 결과가 표시됩니다.</p>
+                    <div id="manualPromptLog" style="margin-top: 1rem; font-family: inherit; background: #0f172a; border-radius: 12px; color: white; border: 1px solid #1e293b; min-height: 200px; display: block; overflow: hidden;">
+                        <div style="padding: 3rem; text-align: center; color: var(--text-secondary);">대본 데이터가 없습니다.</div>
                     </div>
                 </div>
-                <p id="resultStatusText" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">상단의 생성 버튼을 누르거나 대본 파일을 업로드하면 1:1 매칭 결과가 표시됩니다.</p>
-                <div id="manualPromptLog" style="margin-top: 1rem; font-family: inherit; background: #0f172a; border-radius: 12px; color: white; border: 1px solid #1e293b; min-height: 200px; display: block; overflow: hidden;">
-                    <div style="padding: 3rem; text-align: center; color: var(--text-secondary);">대본 데이터가 없습니다.</div>
-                </div>
-            </div>
 
-            <!-- Output Panel -->
-            <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column;">
-                <h3 style="margin-top: 0; color: var(--text-secondary);">Generation Progress</h3>
-                <div id="generationLog" style="flex: 1; min-height: 400px; font-family: monospace; font-size: 0.9rem; overflow-y: auto; white-space: pre-wrap; color: #e2e8f0; background: #0f172a; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;"></div>
-                
-
-                <!-- TTS Audio Generation Panel -->
-
-                <!-- TTS Audio Generation Panel -->
-                <div id="ttsPanel" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                <!-- 4. TTS Audio Generation Panel -->
+                <div id="ttsPanel" style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem;">
                     <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-                        🎧 Automated TTS Generator
+                        4. Automated TTS Generator
                         <button id="generateAudioBtn" style="background: #8b5cf6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);">Generate Full Audio</button>
                     </h3>
 
@@ -244,20 +269,19 @@
                     <div id="audioResultContainer" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;"></div>
                 </div>
                 
-                <!-- Video Compositor Panel -->
-                <!-- Video Compositor Panel -->
-                <div id="videoPanel" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border);">
+                <!-- 5 & 6. Video Compositor Panel -->
+                <div id="videoPanel" style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.5rem;">
                     <h3 style="margin-top: 0; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-                        🎬 Hybrid Media Compositor
+                        6. Hybrid Media Compositor
                         <button id="generateVideoBtn" style="background: #eab308; color: black; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 10px rgba(234, 179, 8, 0.3);">Merge & Render Final Video</button>
                     </h3>
                     <div style="margin-top: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">1. 생성한 미디어(비디오 및 이미지) 수동 업로드</label>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">5. 생성한 미디어(비디오 및 이미지) 수동 업로드</label>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0;">외부에서 제작한 동영상 파일(.mp4)과 이미지 파일(.jpg, .png)들을 순서대로(예: 1.mp4, 2.jpg) 모두 선택해 한꺼번에 업로드하세요.</p>
                         <input type="file" id="manualVideosInput" multiple accept="video/mp4, image/jpeg, image/png, image/webp" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px;">
                     </div>
                     <div style="margin-top: 1.5rem; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">2. [강력 추천] 자막 파일(.srt) 업로드 (싱크 완벽 보정용)</label>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-secondary);">[선택] 자막 파일(.srt) 업로드 (싱크 완벽 보정용)</label>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0;">Vrew 등에서 내보낸 .srt 파일이 있다면 업로드하세요. 글자 수 계산 대신 자막의 타임스탬프를 100% 활용하여 무오차 싱크를 구현합니다.</p>
                         <input type="file" id="srtFileInput" accept=".srt" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; padding: 0.75rem; border-radius: 8px;">
                     </div>

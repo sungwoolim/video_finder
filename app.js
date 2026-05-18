@@ -19,6 +19,20 @@ const formatDate = (dateString) => {
     return date.toISOString().split('T')[0];
 };
 
+// ----------------------------------------------------
+// 🛡️ GLOBAL CONSTRAINTS (DO NOT MODIFY OR DELETE)
+// 과거 파이프라인 최적화 과정에서 추가된 필수 제약조건 모음.
+// 프롬프트 구조가 변경되어도 이 규칙들은 항상 유지되어야 합니다.
+// ----------------------------------------------------
+const GLOBAL_NEGATIVE_RULES = `
+- [CHANNEL TONE & NO PREACHING] 대본의 방향성은 '팩트(사실)'에 입각한 장기적인 안목을 지향하지만, 절대 시청자를 훈계하거나 가르치려 들지 말 것. (예: "단단한 투자자가 되시길 바랍니다", "투자는 인내의 과정입니다" 같은 명시적 설교/감성적 클로징 절대 금지). 투자 가치관은 팩트 분석 속에 자연스럽게 녹아들어야 함.
+- [NO ABSTRACT METAPHORS] 너무 추상적이거나 시적인 비유, 뜬구름 잡는 문장을 절대 쓰지 말 것. 특히 훅과 인트로는 감성적이지 않고, 데이터 기반으로 매우 직관적이고 구체적(Concrete)이어야 함.
+- DO NOT REPEAT YOURSELF: Never restate the same statistics, hooks, or structural points in different words.
+- PROGRESSIVE LOGIC: The script must flow naturally from hook to conclusion without getting stuck in loops.
+- NO HALLUCINATIONS: Rely strictly on the transcripts. Do not invent facts.
+- NO OTHER CHANNEL NAMES: DO NOT include specific YouTube channel names (e.g. 삼프로TV, 슈카월드), other YouTuber names, or generic greetings. Write neutrally except for the required channel intro.
+`;
+
 // State
 let MOCK_DATA = [];
 let currentData = [];
@@ -73,6 +87,10 @@ const recommendTopicBtn = document.getElementById('recommendTopicBtn');
 const topicRecommendationResult = document.getElementById('topicRecommendationResult');
 const videoTopicInput = document.getElementById('videoTopicInput');
 const downloadPromptsBtn = document.getElementById('downloadPromptsBtn');
+const tavilyApiKeyInput = document.getElementById('tavilyApiKeyInput');
+const fetchExternalDataBtn = document.getElementById('fetchExternalDataBtn');
+const externalDataPeriodSelect = document.getElementById('externalDataPeriodSelect');
+const externalDataResult = document.getElementById('externalDataResult');
 
 // Manual Prompt Elements
 const generatePromptsOnlyBtn = document.getElementById('generatePromptsOnlyBtn');
@@ -89,6 +107,9 @@ const init = () => {
     
     const savedPrompt = localStorage.getItem('scriptPromptTemplate');
     if (savedPrompt) promptTemplateInput.value = savedPrompt;
+    
+    const savedTavilyKey = localStorage.getItem('tavilyApiKey');
+    if (savedTavilyKey) tavilyApiKeyInput.value = savedTavilyKey;
     
     setupEventListeners();
     updateUI();
@@ -285,7 +306,8 @@ const applyFiltersAndSort = () => {
 
     let filtered = MOCK_DATA.filter(v => {
         if (filterState.length === 'shorts' && v.duration >= 60) return false;
-        if (filterState.length === 'medium' && (v.duration < 60 || v.duration > 1200)) return false;
+        if (filterState.length === 'medium1' && (v.duration < 60 || v.duration > 300)) return false;
+        if (filterState.length === 'medium2' && (v.duration <= 300 || v.duration > 1200)) return false;
         if (filterState.length === 'long' && v.duration <= 1200) return false;
         if (v.subs > filterState.subsMax) return false;
         if (v.views < filterState.viewsMin) return false;
@@ -377,15 +399,11 @@ async function callGemini(apiKey, prompt) {
                     // 기본 대기
                     await new Promise(r => setTimeout(r, 1000));
                     
-                    const res = await fetch(`http://127.0.0.1:5001/api/gemini`, {
+                    const url = `https://generativelanguage.googleapis.com/${ver}/models/${modelName}:generateContent?key=${currentKey}`;
+                    const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey: currentKey,
-                            model: modelName,
-                            version: ver,
-                            payload: { contents: [{ parts: [{ text: prompt }] }] }
-                        })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                     });
                     
                     const data = await res.json();
@@ -430,7 +448,50 @@ if (recommendTopicBtn) {
         recommendTopicBtn.disabled = false;
     });
 }
-
+// External Data Fetching
+if (fetchExternalDataBtn) {
+    fetchExternalDataBtn.addEventListener('click', async () => {
+        const key = tavilyApiKeyInput.value.trim();
+        const topic = videoTopicInput.value.trim();
+        if (!key) { alert("Tavily API Key를 입력해주세요."); return; }
+        if (!topic) { alert("먼저 영상 주제(Video Topic)를 입력해주세요."); return; }
+        
+        localStorage.setItem('tavilyApiKey', key);
+        fetchExternalDataBtn.disabled = true;
+        externalDataResult.style.display = 'block';
+        externalDataResult.textContent = "외부 데이터를 수집 중입니다... (최대 10~20초 소요)";
+        
+        try {
+            const period = externalDataPeriodSelect.value; // 7, 30, 365
+            const query = `최근 투자 시장에서 ${topic}와 관련된 가장 중요한 뉴스, 실적, 주가 변동 원인을 상세히 알려줘.`;
+            
+            const res = await fetch("https://api.tavily.com/search", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    api_key: key,
+                    query: query,
+                    search_depth: "advanced",
+                    include_answer: true,
+                    topic: "news",
+                    days: parseInt(period)
+                })
+            });
+            
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || data.error || "Tavily API Error");
+            
+            // 결과를 전역 변수에 저장하여 대본 생성 시 사용할 수 있게 함
+            const periodText = period === '7' ? '최근 일주일' : (period === '30' ? '최근 한 달' : '최근 1년');
+            window.externalNewsData = `[EXTERNAL NEWS DATA (수집 기준: ${periodText}, 수집일: ${new Date().toLocaleDateString()})]\n${data.answer}`;
+            externalDataResult.innerHTML = `<strong>✅ 외부 데이터 수집 완료 (${new Date().toLocaleDateString()})</strong><br><br>${data.answer.replace(/\n/g, '<br>')}`;
+        } catch (e) {
+            externalDataResult.textContent = `🚨 에러 발생: ${e.message}`;
+            window.externalNewsData = null;
+        }
+        fetchExternalDataBtn.disabled = false;
+    });
+}
 // ----------------------------------------------------
 // MAIN GENERATION FLOW (CHUNKED)
 // ----------------------------------------------------
@@ -445,8 +506,19 @@ if (startGenerationBtn) {
         try {
             let sentences = [];
 
-            // [V6.0 스마트 체크] 이미 업로드하거나 준비된 대본이 있다면 새로 생성하지 않고 그대로 사용
+            let shouldGenerate = true;
+
+            // [V6.0 스마트 체크] 이미 업로드하거나 준비된 대본이 있다면 확인 후 처리
             if (window.whiskReadyScriptText) {
+                const isConfirmed = confirm("기존 생성 항목을 무시하고 다시 생성하시겠습니까?");
+                if (!isConfirmed) {
+                    shouldGenerate = false;
+                } else {
+                    window.whiskReadyScriptText = null;
+                }
+            }
+
+            if (!shouldGenerate) {
                 log("📝 이미 준비된 대본이 감지되었습니다. 기존 장면을 그대로 사용하여 매칭을 시작합니다.");
                 sentences = window.whiskReadyScriptText.split(/\r?\n/)
                     .map(s => s.trim())
@@ -455,53 +527,166 @@ if (startGenerationBtn) {
                 log("⏳ 1단계: 트랜스크립트 분석 및 결합 중...");
                 let combinedTranscripts = "";
                 for (const id of selectedVideoIds) {
-                    const res = await fetch(`http://127.0.0.1:5001/api/transcript?videoId=${id}`);
+                    const res = await fetch(`http://127.0.0.1:8788/api/transcript?videoId=${id}`);
                     const data = await res.json();
                     combinedTranscripts += `\nVideo ID ${id}:\n${data.transcript || ""}\n`;
                 }
 
-                log("⏳ 2단계: AI 대본 새로 생성 중...");
-                const template = promptTemplateInput.value || "Viral documentary style";
+                log("⏳ 2단계: AI 대본 순차적 분할 생성 시작...");
+                const templateStr = promptTemplateInput.value || "기본 템플릿";
+                let rawParts = templateStr.split('>').map(p => p.trim()).filter(p => p);
                 const lengthOpt = document.getElementById('lengthOptionSelect').value;
+                const videoTopic = document.getElementById('videoTopicInput') ? document.getElementById('videoTopicInput').value.trim() : "";
                 
-                const scriptPrompt = `
-                [CRITICAL TASK: Generate a highly professional, engaging YouTube script based on the provided transcripts]
+                // 분량 옵션에 따라 '설명(본문)' 파트를 강제로 쪼개어 API 호출 횟수를 늘림 (분량 확보의 핵심)
+                let parts = [];
+                for (const p of rawParts) {
+                    if (p.includes('설명') || p.includes('본론') || p.includes('Body')) {
+                        if (lengthOpt === "Long") {
+                            parts.push(`${p} (Part 1: 팩트 기반 현황 분석)`);
+                            parts.push(`${p} (Part 2: 심층 데이터 및 원인 분석)`);
+                            parts.push(`${p} (Part 3: 거시 경제적 파급 효과 및 장기 전망)`);
+                        } else if (lengthOpt === "Normal") {
+                            parts.push(`${p} (Part 1: 현황 및 데이터 분석)`);
+                            parts.push(`${p} (Part 2: 향후 전망 및 파급 효과)`);
+                        } else {
+                            parts.push(p);
+                        }
+                    } else {
+                        parts.push(p);
+                    }
+                }
                 
-                # Requirements
-                1. Format: Write exactly ONE SENTENCE PER LINE. No paragraphs.
-                2. Style: ${template}
-                3. Target Length: ${lengthOpt} (IMPORTANT: If the source transcripts do not have enough material to reach this length, do NOT force it. Prioritize density and quality over length.)
+                // 데이터 토막 내기 (Transcript Chunking)
+                let transcriptChunks = [];
+                const tLines = combinedTranscripts.split('\n').filter(l => l.trim().length > 0);
+                let bodyPartCount = parts.filter(p => p.includes('Part 1') || p.includes('Part 2') || p.includes('Part 3') || p.includes('본론') || p.includes('설명')).length;
+                if (bodyPartCount === 0) bodyPartCount = 1;
                 
-                # STRICT NEGATIVE CONSTRAINTS (PENALTY FOR VIOLATION)
-                - DO NOT REPEAT YOURSELF: Never restate the same statistics, quotes, or structural points in different words.
-                - NO INFINITE LOOPS: Do not introduce a topic (e.g., "3 key metrics"), then re-introduce the exact same topic later in the script.
-                - PROGRESSIVE LOGIC: Every sentence must advance the narrative forward. If you run out of source material, naturally conclude the script rather than repeating the introduction.
-                - NO HALLUCINATIONS: Do not invent facts that are not reasonably derived from the transcript or general knowledge context.
+                const linesPerChunk = Math.ceil(tLines.length / bodyPartCount);
+                for (let c = 0; c < bodyPartCount; c++) {
+                    transcriptChunks.push(tLines.slice(c * linesPerChunk, (c + 1) * linesPerChunk).join('\n'));
+                }
                 
-                TRANSCRIPTS:
-                ${combinedTranscripts.slice(0, 35000)}
-                `;
+                let currentBodyIndex = 0;
+                let fullScript = "";
+                let sentences = [];
                 
-                const generatedScript = await callGemini(geminiKey, scriptPrompt);
-                log("✅ 대본 생성 완료!");
+                for (let i = 0; i < parts.length; i++) {
+                    const currentPart = parts[i];
+                    log(`▶️ [${i+1}/${parts.length}] "${currentPart}" 파트 생성 중...`);
+                    
+                    let currentChunkContent = combinedTranscripts; // 기본값
+                    
+                    // 파트 성격에 맞춰 데이터 분할 배급
+                    if (currentPart.includes('Part 1') || currentPart.includes('Part 2') || currentPart.includes('Part 3') || currentPart.includes('본론') || currentPart.includes('설명')) {
+                        currentChunkContent = transcriptChunks[currentBodyIndex] || combinedTranscripts;
+                        currentBodyIndex++;
+                    } else if (currentPart.includes('훅') || currentPart.includes('Hook') || currentPart.includes('인트로') || currentPart.includes('Intro')) {
+                        currentChunkContent = transcriptChunks[0] || combinedTranscripts;
+                    } else if (currentPart.includes('결론') || currentPart.includes('아웃트로') || currentPart.includes('Conclusion')) {
+                        currentChunkContent = transcriptChunks[transcriptChunks.length - 1] || combinedTranscripts;
+                    }
+                    
+                    // 외부 뉴스 데이터가 있다면 추가 (초반 파트에만 주입하여 중복 방지)
+                    if (window.externalNewsData && (currentPart.includes('훅') || currentPart.includes('Hook') || currentPart.includes('인트로') || currentPart.includes('Intro') || currentPart.includes('Part 1') || i === 0 || i === 1)) {
+                        currentChunkContent += `\n\n${window.externalNewsData}`;
+                    }
+                    
+                    // 스마트 분량 조절 및 파트별 특수 지시사항
+                    let targetLines = "15-20 lines";
+                    let partSpecificRules = "";
+                    
+                    if (currentPart.includes('훅') || currentPart.includes('Hook')) {
+                        targetLines = "3-5 lines (Keep it very short and punchy)";
+                        partSpecificRules = `
+                        [HOOK SPECIFIC RULES]
+                        - 훅의 첫 시작은 반드시 "여러분, ~ 나요?" 또는 "여러분, ~까?" 형태의 질문으로 시작할 것.
+                        - 질문은 절대 뜬구름 잡는 모호한(vague) 말이어서는 안 됩니다. 시청자의 뼈(정곡)를 찌르는 '매우 구체적이고 날카로운 팩트 기반의 페인포인트(Pain point)'를 짚어야 합니다.
+                        `;
+                    }
+                    else if (currentPart.includes('인트로') || currentPart.includes('Intro')) {
+                        targetLines = "5-8 lines";
+                        partSpecificRules = `
+                        [INTRO SPECIFIC RULES]
+                        - 인트로의 초반부에 반드시 "결론부터 말하면~ " 이라는 멘트를 넣어 시청 지속시간을 높일 것. 단, 이어지는 결론은 두루뭉술한 표현이 아니라 이 영상의 가장 핵심적이고 구체적인 '팩트 결론'을 직설적으로 꽂아 넣어야 함.
+                        - 이어서 "이 영상을 보시면 ~ 를 알게 됩니다" 라는 멘트를 통해 시청자가 얻어갈 가치를 제시할 것. 이때 추상적인 기대감이 아니라, 시청자가 얻게 될 '정확한 데이터, 전략, 또는 시장의 이면'을 매우 구체적으로 명시할 것.
+                        - 인트로의 마지막 문장은 반드시 다음의 채널 소개 멘트로 끝맺을 것: "안녕하세요. 장기적인 안목으로 혼란스러운 시장 속에서 사실에만 집중하며 단단한 투자자가 되고 싶은 slowly but surely 입니다."
+                        `;
+                    }
+                    else if (currentPart.includes('결론') || currentPart.includes('아웃트로') || currentPart.includes('Conclusion')) {
+                        targetLines = "5-10 lines";
+                    }
+                    else {
+                        // 세분화된 본문 파트 하나당 요구 줄 수
+                        let bodyLines = "15-25 lines";
+                        if (lengthOpt === "Short") {
+                            bodyLines = "20-30 lines";
+                        } else if (lengthOpt === "Long") {
+                            bodyLines = "25-35 lines";
+                            partSpecificRules += `\n- [ANTI-REPETITION FOR LONG SCRIPT] 분량을 늘리기 위해 절대 똑같은 통계나 주장을 반복해서는 안 됩니다. 현재 파트(${currentPart})의 성격에 맞춰서만 매우 깊고 디테일하게 서술하십시오.`;
+                        } else if (lengthOpt === "Normal") {
+                            bodyLines = "20-30 lines";
+                        }
+                        
+                        targetLines = `${bodyLines} (This is a specific sub-section of the main body. Expand heavily with deep analysis on this specific sub-topic: ${currentPart})`;
+                    }
 
-                sentences = generatedScript.split(/\r?\n/)
+                    const partPrompt = `
+                    [CRITICAL TASK: Generate the "${currentPart}" section of a highly professional YouTube script]
+                    
+                    # Requirements
+                    1. Format: Write exactly ONE SENTENCE PER LINE. No paragraphs. Break down long complex ideas into short, punchy sentences.
+                    2. Target Length for this section: ${targetLines}.
+                    3. Tone & Style (CRITICAL): CONVERSATIONAL & ENGAGING YOUTUBE ANCHOR TONE (구어체). Do NOT write like a dry financial report, news article, or academic paper (문어체 절대 금지). Write dynamically as if speaking directly to the audience. Use rhetorical questions, dramatic emphasis, and relatable analogies. 
+                       - Bad Example: "경영진은 2억 달러를 투입해 110달러 캡트콜을 체결했습니다." 
+                       - Good Example: "실제로 경영진은 이번에 조달한 거금 중 무려 2억 달러를 곧바로 어디에 썼을까요? 바로 '110달러 캡트콜'이라는 주가 방어 옵션에 과감하게 베팅했습니다!"
+                    ${videoTopic ? `4. Main Video Topic: "${videoTopic}" (CRITICAL: Analyze the transcripts and frame the ENTIRE narrative strictly from the perspective of this topic. Discard irrelevant facts).` : ''}
+                    ${partSpecificRules}
+                    
+                    4. Context: You are writing the "${currentPart}" section. Here is what has been written so far:
+                       [PREVIOUS SCRIPT HISTORY]
+                       ${fullScript ? fullScript : "This is the very beginning of the script. Start fresh."}
+                    
+                    # STRICT NEGATIVE CONSTRAINTS (PENALTY FOR VIOLATION)
+                    ${GLOBAL_NEGATIVE_RULES}
+                    - EXTREME ANTI-REPETITION: STRICTLY read the [PREVIOUS SCRIPT HISTORY] above. You MUST NOT repeat any specific statistics, facts, company names, or arguments that have already been mentioned. If the previous script already talked about "30억 달러", "70달러", or "미란티스", you must completely ignore those facts and find entirely NEW facts from the [SOURCE TRANSCRIPT DATA & EXTERNAL NEWS] chunk below.
+                    - PROGRESSIVE LOGIC: Every sentence must advance the narrative forward based on new data.
+                    - NO HEADINGS: DO NOT output any section titles, headings, or markdown formatting like "### 설명 (Part 3)". Just output the script sentences directly.
+                    
+                    [SOURCE TRANSCRIPT DATA & EXTERNAL NEWS]
+                    ${currentChunkContent.slice(0, 150000)}
+                    `;
+                    
+                    let generatedPart = await callGemini(geminiKey, partPrompt);
+                    
+                    const cleanedPart = generatedPart.split(/\r?\n/)
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0)
+                        .map(s => s.replace(/^\d+\.\s+/, ''))
+                        .filter(s => !s.match(/^(###|##|#|\*\*|\[)\s*(설명|본론|결론|인트로|훅|Part|Conclusion|Intro|Hook|아웃트로)/i))
+                        .join('\n');
+                        
+                    fullScript += cleanedPart + "\n";
+                    log(`✅ "${currentPart}" 파트 생성 완료. (${cleanedPart.split('\n').length}문장 추가됨)`);
+                }
+
+                log("🎉 전체 대본 순차 분할 생성 완료!");
+                sentences = fullScript.split(/\r?\n/)
                     .map(s => s.trim())
-                    .map(s => s.replace(/^\d+\.\s+/, ''));
+                    .filter(s => s.length > 0);
                 
                 window.whiskReadyScriptText = sentences.join('\n');
             }
 
-            // 장면 수 뱃지 업데이트
-            const badge = document.getElementById('sceneCountBadge');
-            if (badge) {
-                badge.textContent = `${sentences.length} Scenes`;
-                badge.style.display = 'inline-block';
+            // 3. 대본 검토 화면 띄우기 (프롬프트 자동생성 보류)
+            const reviewPanel = document.getElementById('scriptReviewPanel');
+            const scriptTextarea = document.getElementById('generatedScriptTextarea');
+            if (reviewPanel && scriptTextarea) {
+                scriptTextarea.value = window.whiskReadyScriptText;
+                reviewPanel.style.display = 'block';
+                log(`✅ 대본이 준비되었습니다! 오른쪽 패널에서 대본을 검토 및 수정하신 후 [대본 확정] 버튼을 눌러주세요.`);
             }
-            log(`📦 총 ${sentences.length}개의 장면이 확정되었습니다. 프롬프트 매칭을 시작합니다.`);
-
-            // 3. 영문 이미지 프롬프트 자동 매칭 생성 (통합 로직 호출)
-            startIntegratedPromptGeneration(sentences);
 
         } catch (e) { 
             log(`🚨 에러 발생: ${e.message}`);
@@ -509,6 +694,50 @@ if (startGenerationBtn) {
             resultArea.innerHTML = `<div style="padding: 2rem; color: #ef4444; text-align: center;">🚨 오류 발생: ${e.message}</div>`;
         }
         startGenerationBtn.disabled = false;
+    });
+}
+
+// ----------------------------------------------------
+// SCRIPT CONFIRMATION FLOW (NEW)
+// ----------------------------------------------------
+const confirmScriptBtn = document.getElementById('confirmScriptBtn');
+const downloadScriptBtn = document.getElementById('downloadScriptBtn');
+
+if (downloadScriptBtn) {
+    downloadScriptBtn.addEventListener('click', () => {
+        const text = document.getElementById('generatedScriptTextarea').value;
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = "Generated_Script.txt"; a.click();
+    });
+}
+
+if (confirmScriptBtn) {
+    confirmScriptBtn.addEventListener('click', () => {
+        const scriptText = document.getElementById('generatedScriptTextarea').value.trim();
+        if (!scriptText) return;
+        
+        const sentences = scriptText.split(/\r?\n/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0)
+            .map(s => s.replace(/^\d+\.\s+/, ''));
+            
+        // Update global variable to the edited version
+        window.whiskReadyScriptText = sentences.join('\n');
+        
+        // Update badge
+        const badge = document.getElementById('sceneCountBadge');
+        if (badge) {
+            badge.textContent = `${sentences.length} Scenes`;
+            badge.style.display = 'inline-block';
+        }
+        
+        document.getElementById('generationLog').innerHTML += `\n📦 사용자가 대본을 확정했습니다. (총 ${sentences.length}개 장면)\n프롬프트 매칭을 시작합니다...\n`;
+        document.getElementById('generationLog').scrollTop = document.getElementById('generationLog').scrollHeight;
+
+        // Start Prompt Generation
+        startIntegratedPromptGeneration(sentences);
     });
 }
 
@@ -830,7 +1059,18 @@ generateVideoBtn.addEventListener('click', async () => {
     formData.append("script", window.whiskReadyScriptText);
     formData.append("audio", window.finalWavBlob, "audio.wav");
     if (window.generatedSceneData) formData.append("prompts", JSON.stringify(window.generatedSceneData));
-    for (let i = 0; i < manualVideosInput.files.length; i++) formData.append("videos", manualVideosInput.files[i]);
+    
+    // 파일 목록을 배열로 변환한 뒤 '자연 정렬(Natural Sort)' 수행
+    // (예: flow_10 이 flow_2 보다 뒤에 오도록 똑똑하게 정렬)
+    const filesArray = Array.from(manualVideosInput.files);
+    filesArray.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+    for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
+        // 정렬된 순서대로 인덱스를 붙여 서버 전송
+        const orderedName = `${String(i + 1).padStart(4, '0')}_${file.name}`;
+        formData.append("images", file, orderedName);
+    }
     
     const srtFileInput = document.getElementById('srtFileInput');
     if (srtFileInput && srtFileInput.files.length > 0) {
@@ -839,11 +1079,23 @@ generateVideoBtn.addEventListener('click', async () => {
 
     try {
         const res = await fetch("http://127.0.0.1:5001/api/make-video", { method: "POST", body: formData });
-        const { job_id } = await res.json();
+        const data = await res.json();
+        if (data.error) {
+            videoLog.textContent = `🚨 서버 에러: ${data.error}`;
+            generateVideoBtn.disabled = false;
+            return;
+        }
+        const job_id = data.job_id;
         videoLog.textContent = "Rendering started. Checking progress...";
         const ev = new EventSource(`http://127.0.0.1:5001/api/progress/${job_id}`);
         ev.onmessage = (e) => {
             const d = JSON.parse(e.data);
+            if (d.error) {
+                videoLog.textContent = `🚨 에러: ${d.error}`;
+                ev.close();
+                generateVideoBtn.disabled = false;
+                return;
+            }
             videoLog.textContent = `Progress: ${d.progress}% - ${d.message}`;
             if (d.status === 'completed') {
                 ev.close();
@@ -852,6 +1104,9 @@ generateVideoBtn.addEventListener('click', async () => {
                 a.download = "Video.mp4";
                 a.click();
                 videoLog.textContent = "✅ Done!";
+                generateVideoBtn.disabled = false;
+            } else if (d.status === 'error') {
+                ev.close();
                 generateVideoBtn.disabled = false;
             }
         };
@@ -1021,15 +1276,25 @@ async function startIntegratedPromptGeneration(sentences) {
     try {
         log(`⏳ 4/30 스타일 One-Shot 생성 시작... (총 ${validSentences.length}개 장면)`);
         
+        const processedSentences = validSentences.map((s, idx) => {
+            const hasData = /\d+(%|퍼센트|억|만|천|백|배|달러|원)|증가|감소|상승|하락|통계|수치|기록|달성/i.test(s);
+            const styleTag = hasData ? "[DATA/INFOGRAPHIC]" : "[CINEMATIC]";
+            return `[${idx + 1}] ${styleTag} ${s}`;
+        });
+
         const pPrompt = `
-        [TASK: Create cinematic image prompts in English for EACH scene]
+        [TASK: Create image prompts in English for EACH scene based on the style tags]
         - Total Scenes: ${validSentences.length}
         - Format: [Number] Prompt text
-        - Style: Photorealistic, 8k, cinematic, high detail, no humans.
-        - Important: Provide EXACTLY ${validSentences.length} lines. Each line must start with [Scene Number].
+        
+        - Style Rules:
+          * If tagged [CINEMATIC]: Create a detailed visual description of the scene based on the text. Start your prompt with: "Photorealistic, 8k, cinematic, high detail, no humans, [Describe the specific subject, action, and environment here]"
+          * If tagged [DATA/INFOGRAPHIC]: Create a prompt for a highly realistic and objective data visualization. Start your prompt with: "Clean 3D infographic, professional corporate data visualization, realistic charts and graphs, dark background. [Describe the specific chart type (e.g., bar chart, line graph) showing the exact numbers/metrics from the text in glowing typography]"
+          
+        - Important: Provide EXACTLY ${validSentences.length} lines. Each line must start with [Scene Number]. Do NOT include the [CINEMATIC] or [DATA] tags in the final English prompt.
         
         SCENES:
-        ${validSentences.map((s, idx) => `[${idx + 1}] ${s}`).join('\n')}
+        ${processedSentences.join('\n')}
         `;
 
         const resText = await callGemini(geminiKey, pPrompt);

@@ -4,13 +4,27 @@ import subprocess
 import threading
 import uuid
 import time
+import json
+import urllib.request
+import urllib.parse
 import whisper
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 
+def parse_yt_duration(duration_str):
+    match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
+    if not match:
+        return 0
+    h, m, s = match.groups()
+    h = int(h) if h else 0
+    m = int(m) if m else 0
+    s = int(s) if s else 0
+    return h * 3600 + m * 60 + s
+
 app = Flask(__name__)
 CORS(app)
+
 
 JOBS = {}
 JOBS_DIR = Path("jobs")
@@ -311,6 +325,101 @@ def process_video_job(job_id, tmp_path_str, script_text):
         JOBS[job_id]["error"] = str(e)
 
 
+@app.route('/api/search', methods=['GET'])
+def search_youtube():
+    query = request.args.get('query')
+    api_key = request.args.get('apiKey')
+    published_after = request.args.get('publishedAfter')
+
+    if not query or not api_key:
+        return jsonify({"error": "Missing query or apiKey"}), 400
+
+    results = []
+    try:
+        search_url = "https://www.googleapis.com/youtube/v3/search"
+        params = {
+            "part": "snippet",
+            "q": query,
+            "type": "video",
+            "maxResults": "50",
+            "key": api_key,
+            "order": "date"
+        }
+        if published_after:
+            params["publishedAfter"] = published_after
+
+        video_items = []
+        next_page_token = None
+        
+        for _ in range(3):
+            req_params = params.copy()
+            if next_page_token:
+                req_params["pageToken"] = next_page_token
+            url = f"{search_url}?{urllib.parse.urlencode(req_params)}"
+            with urllib.request.urlopen(url) as response:
+                data = json.loads(response.read().decode())
+                video_items.extend(data.get("items", []))
+                next_page_token = data.get("nextPageToken")
+                if not next_page_token:
+                    break
+
+        if not video_items:
+            return jsonify([])
+
+        video_ids = [item["id"]["videoId"] for item in video_items if "videoId" in item["id"]]
+        channel_ids = list(set([item["snippet"]["channelId"] for item in video_items if "channelId" in item["snippet"]]))
+
+        videos_url = "https://www.googleapis.com/youtube/v3/videos"
+        video_stats = {}
+        for i in range(0, len(video_ids), 50):
+            batch_ids = ",".join(video_ids[i:i+50])
+            v_params = {"part": "contentDetails,statistics", "id": batch_ids, "key": api_key}
+            url = f"{videos_url}?{urllib.parse.urlencode(v_params)}"
+            with urllib.request.urlopen(url) as response:
+                data = json.loads(response.read().decode())
+                for item in data.get("items", []):
+                    dur_str = item.get("contentDetails", {}).get("duration", "PT0S")
+                    dur_sec = parse_yt_duration(dur_str)
+                    views = int(item.get("statistics", {}).get("viewCount", 0))
+                    video_stats[item["id"]] = {"duration": dur_sec, "views": views}
+
+        channels_url = "https://www.googleapis.com/youtube/v3/channels"
+        channel_stats = {}
+        for i in range(0, len(channel_ids), 50):
+            batch_ids = ",".join(channel_ids[i:i+50])
+            c_params = {"part": "statistics", "id": batch_ids, "key": api_key}
+            url = f"{channels_url}?{urllib.parse.urlencode(c_params)}"
+            with urllib.request.urlopen(url) as response:
+                data = json.loads(response.read().decode())
+                for item in data.get("items", []):
+                    subs = int(item.get("statistics", {}).get("subscriberCount", 0))
+                    channel_stats[item["id"]] = {"subs": subs}
+
+        for item in video_items:
+            if "videoId" not in item["id"]:
+                continue
+            vid = item["id"]["videoId"]
+            cid = item["snippet"]["channelId"]
+            v_stat = video_stats.get(vid, {"duration": 0, "views": 0})
+            c_stat = channel_stats.get(cid, {"subs": 0})
+            
+            results.append({
+                "videoId": vid,
+                "title": item["snippet"]["title"],
+                "channel": item["snippet"]["channelTitle"],
+                "duration": v_stat["duration"],
+                "views": v_stat["views"],
+                "subs": c_stat["subs"],
+                "thumbnail": item["snippet"]["thumbnails"]["high"]["url"] if "high" in item["snippet"]["thumbnails"] else item["snippet"]["thumbnails"]["default"]["url"],
+                "publishedAt": item["snippet"]["publishedAt"]
+            })
+
+        return jsonify(results)
+    except Exception as e:
+        print("Error fetching YouTube API:", e)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/make-video', methods=['POST'])
 def make_video():
     if 'audio' not in request.files or 'script' not in request.form or 'images' not in request.files:
@@ -383,6 +492,6 @@ def download_video(job_id):
 
 
 if __name__ == '__main__':
-    print("🎬 Video Rendering Backend is running on http://localhost:5000")
+    print("🎬 Video Rendering Backend is running on http://localhost:5001")
     print("Press Ctrl+C to stop.")
-    app.run(host='127.0.0.1', port=5000, threaded=True)
+    app.run(host='127.0.0.1', port=5001, threaded=True)
